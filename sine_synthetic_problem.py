@@ -2,12 +2,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-bitstring_size = 15
-scaling_factor = 2 ** (7 - bitstring_size)
-
-num_parents = 2
-constraint = True
-
 def generate_initial_population(population_size):
     population = []
     for _ in range(population_size):
@@ -24,10 +18,14 @@ def bitstring_to_float(bitstring):
 def fitness_function(bitstring):
     x = bitstring_to_float(bitstring)
     if constraint and (x < 5 or x > 10):
-        return np.clip(np.sin(x) - 0.5, -1, np.inf)
+        if x < 5:
+            return np.clip(np.sin(x) - (5 - x), -1, 1)
+        return np.clip(np.sin(x) - (x - 10), -1, 1)
+    # if constraint and (x < 5 or x > 10):
+    #     return np.clip(np.sin(x) - 0.5, -1, 1)
     return np.sin(x)
 
-def find_parents(population, num_parents): 
+def find_parents(population, num_parents=2): 
     fitnesses = [fitness_function(bitstring) for bitstring in population]
     parents = []
     for _ in range(num_parents):
@@ -59,24 +57,62 @@ def survivor_selection(population, population_size):
     population = np.delete(population, min_fitness, axis=0)
     return population
 
-global num
-num = 1
-plt.ion()
+def survivor_selection_with_crowding(population, population_size):
+    fitnesses = [fitness_function(bitstring) for bitstring in population]
+    fitnesses = np.array(fitnesses)
+
+    sigma = np.pi / 2
+    a = 1
+    def sh(d): return 1 - (d / sigma) ** a if d < sigma else 0
+    share_fitnesses = np.zeros(len(population))
+    for i in range(len(population)):
+        x = bitstring_to_float(population[i])
+        for j in range(len(population)):
+            y = bitstring_to_float(population[j])
+            share_fitnesses[i] += sh(np.abs(x - y))
+
+    fitnesses = fitnesses / share_fitnesses
+
+    min_fitness = []
+    for _ in range(len(population) - population_size):
+        min_fitness.append(np.argmin(fitnesses))
+        fitnesses[min_fitness[-1]] = np.inf
+    population = np.delete(population, min_fitness, axis=0)
+    return population
+
+def calculate_entropy(population):
+    bit_string_probability = np.sum(population, axis=0) / len(population)
+    bit_string_probability = bit_string_probability[bit_string_probability != 0]
+    return -np.sum(bit_string_probability * np.log2(bit_string_probability))    
+
+global entropy_list
+entropy_list = []  # list to store all entropy values
+
+fig, axs = plt.subplots(1, 2, figsize=(10, 5), gridspec_kw={'width_ratios': [2, 1]})  # specify width ratios
+
 def plot_population(population):
-    global num
-    plt.clf()
-    x = np.linspace(0, 128, 1000)
-    y = np.sin(x)
-    plt.plot(x, y)
+    # First subplot
+    axs[0].cla()  # clear first subplot
+    axs[0].plot(np.linspace(0, 128, 1000), np.sin(np.linspace(0, 128, 1000)))
     x = [bitstring_to_float(bitstring) for bitstring in population]
     y = [fitness_function(bitstring) for bitstring in population]
-    plt.scatter(x, y, c='r')
-    # plt.show()
-    plt.title("Generation " + str(num))
+    axs[0].scatter(x, y, c='r')
+    axs[0].set_title("Generation " + str(len(entropy_list)+1))
+    axs[0].set_xlabel("Float value of individuals")
+    axs[0].set_ylabel("Fitness")
+
+    # Second subplot
+    axs[1].cla()  # clear second subplot
+    entropy_list.append(calculate_entropy(population))  # append entropy value to list
+    axs[1].plot(entropy_list, 'b-')  # plot num_list as blue dots connected by lines
+    axs[1].set_title("Entropy")
+    axs[1].set_ylim([0, 10])  # set y-axis limits
+    axs[1].set_xlim([0, num_generations])  # set x-axis limits
+    axs[1].set_xlabel("Generation")
+    axs[1].set_ylabel("Entropy")
+
     plt.draw()
-    plt.pause(0.1)
-    num += 1
-plt.show(block=True)
+    plt.pause(0.001)
 
 def genetic_algorithm(population_size, num_generations):
     population = generate_initial_population(population_size)
@@ -84,11 +120,15 @@ def genetic_algorithm(population_size, num_generations):
     initial_population = population.copy()
     for _ in range(num_generations):
         plot_population(population)
-        parents = find_parents(population, num_parents)
+        parents = find_parents(population)
         children = crossover(parents)
         children = [mutate(child) for child in children]
         population = np.concatenate((population, children))
-        population = survivor_selection(population, population_size)
+        if crowding:
+            population = survivor_selection_with_crowding(population, population_size)
+        else:
+            population = survivor_selection(population, population_size)
+        # plt.show(block=False)
     return population
 
 def best_solution(population):
@@ -116,6 +156,13 @@ def best_solution(population):
 if __name__ == '__main__':
     population_size = 100
     num_generations = 100
+
+    bitstring_size = 15
+    scaling_factor = 2 ** (7 - bitstring_size)
+
+    constraint = True
+    crowding = False
+
     population = genetic_algorithm(population_size, num_generations)
     best_solution(population)
     
