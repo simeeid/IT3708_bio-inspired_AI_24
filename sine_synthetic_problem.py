@@ -12,17 +12,12 @@ def generate_initial_population(population_size):
 def bitstring_to_float(bitstring):
     return bitstring.dot(2 ** np.arange(bitstring_size)[::-1]) * scaling_factor
 
-# def bitstring_to_float(bitstring):
-#     return 2 ** sum(bitstring) * scaling_factor
-
 def fitness_function(bitstring):
     x = bitstring_to_float(bitstring)
     if constraint and (x < 5 or x > 10):
         if x < 5:
             return np.clip(np.sin(x) - (5 - x), -1, 1)
         return np.clip(np.sin(x) - (x - 10), -1, 1)
-    # if constraint and (x < 5 or x > 10):
-    #     return np.clip(np.sin(x) - 0.5, -1, 1)
     return np.sin(x)
 
 def find_parents(population, num_parents=2): 
@@ -86,9 +81,9 @@ def calculate_entropy(population):
     return -np.sum(bit_string_probability * np.log2(bit_string_probability))    
 
 global entropy_list
-entropy_list = []  # list to store all entropy values
+entropy_list = []
 
-fig, axs = plt.subplots(1, 2, figsize=(10, 5), gridspec_kw={'width_ratios': [2, 1]})  # specify width ratios
+fig, axs = plt.subplots(1, 2, figsize=(10, 5), gridspec_kw={'width_ratios': [2, 1]})
 
 def plot_population(population):
     # First subplot
@@ -103,11 +98,11 @@ def plot_population(population):
 
     # Second subplot
     axs[1].cla()  # clear second subplot
-    entropy_list.append(calculate_entropy(population))  # append entropy value to list
-    axs[1].plot(entropy_list, 'b-')  # plot num_list as blue dots connected by lines
+    entropy_list.append(calculate_entropy(population))
+    axs[1].plot(entropy_list, 'b-')  # plot num_list as blue line
     axs[1].set_title("Entropy")
-    axs[1].set_ylim([0, 10])  # set y-axis limits
-    axs[1].set_xlim([0, num_generations])  # set x-axis limits
+    axs[1].set_ylim([0, 10])
+    axs[1].set_xlim([0, num_generations])
     axs[1].set_xlabel("Generation")
     axs[1].set_ylabel("Entropy")
 
@@ -160,7 +155,7 @@ if __name__ == '__main__':
     bitstring_size = 15
     scaling_factor = 2 ** (7 - bitstring_size)
 
-    constraint = True
+    constraint = False
     crowding = False
 
     population = genetic_algorithm(population_size, num_generations)
