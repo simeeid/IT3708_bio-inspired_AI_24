@@ -12,16 +12,18 @@ public class GeneticAlgorithm {
     private static int populationSize = 10;
     private static String filePath = "src/main/resources/train/train_0.json";
 
+    private static int nbrNurses;
+    private static Map<String, JsonData.Patient> patients;
     private static double[][] travelTimes;
 
     public static void main(String[] args) {
         
         String instanceName = "";
-        int nbrNurses = 0;
+        nbrNurses = 0;
         int capacityNurse = 0;
         double benchmark = 0;
         JsonData.Depot depot = null;
-        Map<String, JsonData.Patient> patients = null;
+        patients = null;
         travelTimes = null;
         int nbrPatients = 0;
 
@@ -48,15 +50,20 @@ public class GeneticAlgorithm {
         }
 
         int[][] population = generatePopulation(nbrNurses, nbrPatients, populationSize);
-        // for (int i = 0; i < 1; i++) {
-        //     for (int j = 0; j < nbrNurses + nbrPatients; j++) {
-        //         System.out.print(population[i][j] + " ");
-        //     }
-        //     System.out.println();
+
+        Object[] result = calculateTimeAndTimeRequirement(population[0]);
+        double totalTravelTime = (double) result[0];
+        boolean[] meetTimeRequirement = (boolean[]) result[1];
+
+        int[] groupwiseDemand = totalGroupwiseDemand(population[0]);
+        
+        for (int demand : groupwiseDemand) {
+            System.out.println(demand);
+        }
+        // System.out.println(totalTravelTime);
+        // for (boolean b : meetTimeRequirement) {
+        //     System.out.println(b);
         // }
-        double travelTime = totalTravelTime(population[0]);
-        System.out.println();
-        System.out.println("Total time: " + travelTime);
     }
     
     public static int[][] generatePopulation(int nbrNurses, int nbrPatients, int populationSize) {
@@ -91,8 +98,6 @@ public class GeneticAlgorithm {
         // each patient has a time window, and the nurse must arrive within the time window, else nurse has to wait
         // each patient has a service time, and the nurse must spend that much time with the patient
         // the fitness is the total travel time (only) taken by all nurses to visit all patients
-        
-
 
         return 0;
     }
@@ -106,7 +111,7 @@ public class GeneticAlgorithm {
         // if the first element is a patient, then the nurse has to travel from the depot to the patient
         if (previous != 0) {
             totalTravelTime += travelTimes[0][previous];
-            System.out.println("Depot to " + previous + " " + travelTimes[0][previous] + " " + totalTravelTime);
+            // System.out.println("Depot to " + previous + " " + travelTimes[0][previous] + " " + totalTravelTime);
         }
 
         // for each pair of patients, the nurse has to travel the distance between them
@@ -115,10 +120,89 @@ public class GeneticAlgorithm {
         for (int i = 1; i < individual.length; i++) {
             current = individual[i];
             totalTravelTime += travelTimes[previous][current];
-            System.out.println(previous + " " + current + " " + travelTimes[previous][current] + " " + totalTravelTime);
+            // System.out.println(previous + " " + current + " " + travelTimes[previous][current] + " " + totalTravelTime);
             previous = current;
         }
         return totalTravelTime;
+    }
+
+    public static int[] totalGroupwiseDemand(int[] individual) {
+        // calculate the total demand of each group of patients
+        // each nurse has a capacity and the patients have a demand, 
+        // total demand cannot exceed capacity for a nurse (checked later)
+
+        int[] groupwiseDemand = new int[nbrNurses];
+
+        int total = 0;
+
+        int demand = 0;
+        int group = 0;
+        for (int patient : individual) {
+            if (patient == 0) {
+                groupwiseDemand[group] = demand;
+                group++;
+                demand = 0;
+            } else {
+                demand += patients.get(String.valueOf(patient)).getDemand();
+                total += patients.get(String.valueOf(patient)).getDemand();
+            }
+        }
+
+        return groupwiseDemand;
+    }
+
+    public static Object[] calculateTimeAndTimeRequirement(int[] individual) {
+        // check if the individual meets the time requirement of each patient
+        // each patient has a time window, and the nurse must arrive within the time window, else nurse has to wait
+        // each patient has a service time, and the nurse must spend that much time with the patient
+
+        boolean[] timeDemand = new boolean[nbrNurses];
+        for (int i = 0; i < nbrNurses; i++) {
+            timeDemand[i] = true;
+        }
+
+        int group = 0;
+        double time = 0;
+
+        int previous = individual[0];
+        int current;
+        double totalTravelTime = 0;
+        
+        // if the first element is a patient, then the nurse has to travel from the depot to the patient
+        if (previous != 0) {
+            totalTravelTime += travelTimes[0][previous];
+            time += travelTimes[0][previous];
+        }
+
+        // for each pair of patients, the nurse has to travel the distance between them
+        // a nurse is denoted by a 0 in the individual, so when we encounter a 0 this will
+        // indicate that the nurse has to travel to depot, and a new nurse will start from the depot
+        for (int i = 1; i < individual.length; i++) {
+            current = individual[i];
+
+            totalTravelTime += travelTimes[previous][current];
+            time += travelTimes[previous][current];
+
+            if (current != 0) {
+                int careTime = patients.get(String.valueOf(current)).getCareTime();
+                int endTime = patients.get(String.valueOf(current)).getEndTime();
+                if (time > endTime || time + careTime > endTime) {
+                    timeDemand[group] = false;
+                } else if (time < patients.get(String.valueOf(current)).getStartTime()) {
+                    time = patients.get(String.valueOf(current)).getStartTime();
+                }
+                time += careTime;
+            } else {
+                group++;
+            }
+
+            previous = current;
+        }
+        
+        Object[] result = new Object[2];
+        result[0] = totalTravelTime;
+        result[1] = timeDemand; 
+        return result;
     }
 
     public static void crossover() {
