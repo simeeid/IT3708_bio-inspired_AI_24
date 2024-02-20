@@ -2,11 +2,13 @@ package com.simeneidal.GA_app;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 import com.google.gson.Gson;
 import java.io.FileReader;
+import java.lang.reflect.Array;
 
 public class GeneticAlgorithm {
 
@@ -18,10 +20,9 @@ public class GeneticAlgorithm {
     private double[][] travelTimes;
     private Individual[] population;
 
-    public GeneticAlgorithm(int populationSize, String filePath) {
+    public GeneticAlgorithm(int populationSize, String filePath, Individual[] localPopulation) {
         this.populationSize = populationSize;
         this.filePath = filePath;
-        this.population = null;
 
         String instanceName = "";
         nbrNurses = 0;
@@ -53,10 +54,42 @@ public class GeneticAlgorithm {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        
+        if (Objects.isNull(localPopulation)) {
+            generatePopulation(nbrNurses, nbrPatients, populationSize);
+        } else {
+            population = localPopulation;
+        }
+        
+        double bestFitnessBefore = population[0].getFitness();
+        for (Individual individual : population) {
+            if (individual.getFitness() < bestFitnessBefore) {
+                bestFitnessBefore = individual.getFitness();
+            }
+        }
+        System.out.println("Best fitness before: " + bestFitnessBefore);
 
-        generatePopulation(nbrNurses, nbrPatients, populationSize);
-        Individual[] parents = parentSelection();
-        crossover(parents[0].getChromosome(), parents[1].getChromosome());
+        for (int i = 0; i < 1000; i++) {
+            Individual[] parents = parentSelection();
+            Individual[] children = crossover(parents[0].getChromosome(), parents[1].getChromosome());
+            mutation(children[0]); mutation(children[1]);
+            calculateFitness(children[0]); calculateFitness(children[1]);
+            survivorSelection(children[0], children[1]);
+        }
+        double bestFitnessAfter = population[0].getFitness();
+        for (Individual individual : population) {
+            if (individual.getFitness() < bestFitnessAfter) {
+                bestFitnessAfter = individual.getFitness();
+            }
+        }
+        System.out.println("Best fitness after: " + bestFitnessAfter);
+        // System.out.println("Improvement: " + (bestFitnessBefore - bestFitnessAfter));
+    }
+
+    // method that will actually run the GA
+    public void runGA() {
+        System.out.println("Running the GA");
+        
     }
     
     public void generatePopulation(int nbrNurses, int nbrPatients, int populationSize) {
@@ -200,11 +233,29 @@ public class GeneticAlgorithm {
     }
 
     public Individual[] parentSelection() {
+        if (true) { // tournament selection
+            // randomly select 5 individuals from the population
+            int[] indices = new int[populationSize];
+            for (int i = 0; i < populationSize; i++) {
+                indices[i] = i;
+            }
+            Collections.shuffle(Arrays.asList(indices));
+            Individual[] tournament = new Individual[5];
+            for (int i = 0; i < 5; i++) {
+                tournament[i] = population[indices[i]];
+            }
+
+            return findBestIndividuals(tournament);
+        } else {
+            return findBestIndividuals(population);
+        }
+    }
+
+    public Individual[] findBestIndividuals(Individual[] localPopulation) {
         // find the two individuals in the population with the best fitness
-        // these two individuals will be the parents for the next generation
-        Individual parent1 = population[0];
-        Individual parent2 = population[1];
-        for (Individual individual : population) {
+        Individual parent1 = localPopulation[0];
+        Individual parent2 = localPopulation[1];
+        for (Individual individual : localPopulation) {
             if (individual.getFitness() < parent1.getFitness()) {
                 parent2 = parent1;
                 parent1 = individual;
@@ -215,7 +266,7 @@ public class GeneticAlgorithm {
         return new Individual[] {parent1, parent2};
     }
 
-    public void crossover(int[] parent1, int[] parent2) {
+    public Individual[] crossover(int[] parent1, int[] parent2) {
         if (true) { // order 1 crossover
             // remove the last nurse from both parents
             parent1 = Arrays.copyOf(parent1, parent1.length - 1);
@@ -274,7 +325,10 @@ public class GeneticAlgorithm {
             child2 = Arrays.copyOf(child2, child2.length + 1);
             child1[child1.length - 1] = 0;
             child2[child2.length - 1] = 0;
+
+            return new Individual[] {new Individual(child1, 0), new Individual(child2, 0)};
         }
+        return null;
     }
 
     public int[] orderOneCrossover(int[] child1, int[] parent2, int cuttingPoint1, int cuttingPoint2, int parentIndex, int childIndex, int chromosomeLength) {
@@ -349,17 +403,72 @@ public class GeneticAlgorithm {
         return child1;
     }
     
-    public static void mutation() {
-        System.out.println("Mutation");
+    public void mutation(Individual child) {
+        // 50% chance of mutation
+        if (Math.random() < 0.5) {
+            int[] chromosome = child.getChromosome();
+            int index1 = (int) (Math.random() * (chromosome.length - 1));
+            int index2 = (int) (Math.random() * (chromosome.length - 1));
+
+            int temp = chromosome[index1];
+            chromosome[index1] = chromosome[index2];
+            chromosome[index2] = temp;
+            child.setChromosome(chromosome);
+
+            // if (Math.random() < 1.0) {
+            //     // randomly swap two elements in the chromosome
+            //     int temp = chromosome[index1];
+            //     chromosome[index1] = chromosome[index2];
+            //     chromosome[index2] = temp;
+            //     child.setChromosome(chromosome);
+            // } else {
+            //     // pick two random indices and reverse the elements between them
+            //     if (index1 > index2) {
+            //         index1 = index1 + index2;
+            //         index2 = index1 - index2;
+            //         index1 = index1 - index2;
+            //     }
+            //     int[] temp = Arrays.copyOfRange(chromosome, index1, index2);
+            //     for (int i = 0; i < temp.length; i++) {
+            //         chromosome[index1 + i] = temp[temp.length - 1 - i];
+            //     }
+            //     child.setChromosome(chromosome);
+            // }
+        }
     }
     
     public void survivorSelection(Individual child1, Individual child2) {
-        System.out.println("Survivor selection");
+        // find the two individuals in the population with the worst fitness and replace them with the children
+        double worstFitness1 = population[0].getFitness();
+        double worstFitness2 = population[1].getFitness();
+        int worstFitnessIndex1 = 0;
+        int worstFitnessIndex2 = 1;
+
+        for (int i = 2; i < population.length; i++) {
+            if (population[i].getFitness() > worstFitness1) {
+                worstFitnessIndex2 = worstFitnessIndex1;
+                worstFitness2 = worstFitness1;
+                worstFitnessIndex1 = i;
+                worstFitness1 = population[i].getFitness();
+            } else if (population[i].getFitness() > worstFitness2) {
+                worstFitnessIndex2 = i;
+                worstFitness2 = population[i].getFitness();
+            }
+        }
+
+        if (child2.getFitness() < worstFitness1) {
+            population[worstFitnessIndex1] = child2;
+        } else if (child2.getFitness() < worstFitness2) {
+            population[worstFitnessIndex2] = child2;
+        }
+
+        if (child1.getFitness() < worstFitness2) {
+            population[worstFitnessIndex2] = child1;
+        }
     }
 
     public static void main(String[] args) {
-        GeneticAlgorithm GA = new GeneticAlgorithm(10, "src/main/resources/train/train_0.json");
-        GA.parentSelection();
+        GeneticAlgorithm GA = new GeneticAlgorithm(10, "src/main/resources/train/train_0.json", null);
     }
 }
 
