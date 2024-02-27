@@ -69,7 +69,7 @@ public class GeneticAlgorithm {
         }
         System.out.println("Best fitness before: " + bestFitnessBefore);
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 1000; i++) {
             Individual[] parents = parentSelection();
             Individual[] children = crossover(parents[0].getChromosome(), parents[1].getChromosome());
             mutation(children[0]); mutation(children[1]);
@@ -241,7 +241,7 @@ public class GeneticAlgorithm {
     }
 
     public Individual[] parentSelection() {
-        if (true) { // tournament selection
+        if (false) { // tournament selection
             // randomly select 5 individuals from the population
             int[] indices = new int[populationSize];
             for (int i = 0; i < populationSize; i++) {
@@ -325,18 +325,88 @@ public class GeneticAlgorithm {
                 childIndex = 0;
             }
 
-            child1 = orderOneCrossover(child1, parent2, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
-            child2 = orderOneCrossover(child2, parent1, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
+            // child1 = orderOneCrossover(child1, parent2, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
+            // child2 = orderOneCrossover(child2, parent1, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
 
+            child1 = partiallyMappedCrossover(child1, parent1, parent2, cuttingPoint1, cuttingPoint2, chromosomeLength);
+            child2 = partiallyMappedCrossover(child2, parent2, parent1, cuttingPoint1, cuttingPoint2, chromosomeLength);
+            
             // add the last nurse back to the children
             child1 = Arrays.copyOf(child1, child1.length + 1);
             child2 = Arrays.copyOf(child2, child2.length + 1);
             child1[child1.length - 1] = -nbrNurses;
             child2[child2.length - 1] = -nbrNurses;
 
+            // check that both children have all numbers -nbrNurses -> nbrPatients, print error message if not
+            for (int i = -nbrNurses; i < 101; i++) {
+                boolean flag1 = false;
+                boolean flag2 = false;
+                for (int j = 0; j < chromosomeLength+1; j++) {
+                    if (child1[j] == i) {
+                        flag1 = true;
+                    }
+                    if (child2[j] == i) {
+                        flag2 = true;
+                    }
+                }
+                if (!flag1 && i!=0) {
+                    System.out.println("Number " + i + " is missing from child 1");
+                }
+                if (!flag2 && i!=0) {
+                    System.out.println("Number " + i + " is missing from child 2");
+                }
+            }
+
             return new Individual[] {new Individual(child1, 0), new Individual(child2, 0)};
         }
         return null;
+    }
+
+    public int[] partiallyMappedCrossover(int[] child1, int[] parent1, int[] parent2, int cuttingPoint1, int cuttingPoint2, int chromosomeLength) {
+        int parentIndex = cuttingPoint1;
+        int parentIndex2;
+        while (parentIndex < cuttingPoint2 + 1) {
+            // check if parent2[parentIndex] is in child1
+            boolean flag = false;
+            for (int i = 0; i < chromosomeLength; i++) {
+                if (child1[i] == parent2[parentIndex]) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (flag) {
+                parentIndex++;
+            } else {
+                parentIndex2 = parentIndex;
+                while (true) {
+                    // find the index of int num = parent1[parentIndex2] in parent2
+                    int num = parent1[parentIndex2];
+                    int index = -1;
+                    for (int j = 0; j < chromosomeLength; j++) {
+                        if (parent2[j] == num) {
+                            index = j;
+                            break;
+                        }
+                    }
+                    
+                    if (index < cuttingPoint1 || index > cuttingPoint2) {
+                        child1[index] = parent2[parentIndex];
+                        parentIndex++;
+                        break;
+                    } else {
+                        parentIndex2 = index;
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < chromosomeLength; i++) {
+            if (child1[i] == 0) {
+                child1[i] = parent2[i];
+            }
+        }
+
+        return child1;
     }
 
     public int[] orderOneCrossover(int[] child1, int[] parent2, int cuttingPoint1, int cuttingPoint2, int parentIndex, int childIndex, int chromosomeLength) {
