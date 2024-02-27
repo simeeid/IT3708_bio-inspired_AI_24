@@ -16,6 +16,8 @@ public class GeneticAlgorithm {
     private String filePath;
 
     private int nbrNurses;
+    private int capacityNurse;
+    private int nbrPatients;
     private Map<String, JsonData.Patient> patients;
     private double[][] travelTimes;
     private Individual[] population;
@@ -26,12 +28,12 @@ public class GeneticAlgorithm {
 
         String instanceName = "";
         nbrNurses = 0;
-        int capacityNurse = 0;
+        capacityNurse = 0;
         double benchmark = 0;
         JsonData.Depot depot = null;
         patients = null;
         travelTimes = null;
-        int nbrPatients = 0;
+        nbrPatients = 0;
 
         try (FileReader reader = new FileReader(filePath)) {
             // Create Gson instance
@@ -55,21 +57,19 @@ public class GeneticAlgorithm {
             e.printStackTrace();
         }
         
+    }
+
+    // method that will actually run the GA
+    public void runGA(Individual[] localPopulation, int nbrGenerations) {
+        // System.out.println("Running the GA");
+        
         if (Objects.isNull(localPopulation)) {
-            generatePopulation(nbrNurses, nbrPatients, populationSize);
+            generatePopulation();
         } else {
             population = localPopulation;
         }
-        
-        double bestFitnessBefore = population[0].getFitness();
-        for (Individual individual : population) {
-            if (individual.getFitness() < bestFitnessBefore) {
-                bestFitnessBefore = individual.getFitness();
-            }
-        }
-        System.out.println("Best fitness before: " + bestFitnessBefore);
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < nbrGenerations; i++) {
             Individual[] parents = parentSelection();
             Individual[] children = crossover(parents[0].getChromosome(), parents[1].getChromosome());
             mutation(children[0]); mutation(children[1]);
@@ -77,23 +77,16 @@ public class GeneticAlgorithm {
             survivorSelection(children[0], children[1]);
         }
 
-        double bestFitnessAfter = population[0].getFitness();
-        for (Individual individual : population) {
-            if (individual.getFitness() < bestFitnessAfter) {
-                bestFitnessAfter = individual.getFitness();
-            }
-        }
-        System.out.println("Best fitness after: " + bestFitnessAfter);
-        // System.out.println("Improvement: " + (bestFitnessBefore - bestFitnessAfter));
-    }
-
-    // method that will actually run the GA
-    public void runGA() {
-        System.out.println("Running the GA");
+        // calculateFitness(bestIndividual, true);
+        // System.out.println("Best fitness after: " + bestIndividual.getFitness());
         
+        // System.out.println(flipFlap);
+        // System.out.println("Improvement: " + (bestFitnessBefore - bestFitnessAfter));
+        // print that the run is done
+        // System.out.println("Done running the GA");
     }
     
-    public void generatePopulation(int nbrNurses, int nbrPatients, int populationSize) {
+    public void generatePopulation() {
         population = new Individual[populationSize];
         for (int i = 0; i < populationSize; i++) {
             population[i] = new Individual(new int[nbrNurses + nbrPatients], 0);
@@ -115,7 +108,7 @@ public class GeneticAlgorithm {
                 list.add(-j - 1);
             }
             Collections.shuffle(list);
-            list.add(- nbrNurses); // add a 0 to the end of the list
+            list.add(-nbrNurses); // add a 0 to the end of the list
             population[i].setChromosome(list.stream().mapToInt(Integer::intValue).toArray());
         }
 
@@ -123,8 +116,8 @@ public class GeneticAlgorithm {
             calculateFitness(individual);
         }
     }
-    
-    public void calculateFitness(Individual individual) {
+
+    public void calculateFitness(Individual individual, boolean... flags) {
         // calculate the fitness of the individual
         // each individual consists of a list of patients and nurses
         // each nurse travels to each patient in their group
@@ -141,7 +134,7 @@ public class GeneticAlgorithm {
 
         int numberOfNursesOverCapacity = 0;
         for (int demand : groupwiseDemand) {
-            if (demand > nbrNurses) {
+            if (demand > capacityNurse) {
                 numberOfNursesOverCapacity++;
             }
         }
@@ -152,8 +145,10 @@ public class GeneticAlgorithm {
         // System.out.println(totalTravelTime);
         // System.out.println(numberOfPatientsMissed);
         // System.out.println(numberOfNursesOverCapacity);
+        // number++;
+        // boolean flag = flags.length > 0 ? true : false;
 
-        individual.setFitness(totalTravelTime + numberOfPatientsMissed * 50 + numberOfNursesOverCapacity * 50);
+        individual.setFitness(totalTravelTime + numberOfPatientsMissed * 100 + numberOfNursesOverCapacity * 100);
         // System.out.println(individual.getFitness());
     }
 
@@ -241,13 +236,15 @@ public class GeneticAlgorithm {
     }
 
     public Individual[] parentSelection() {
-        if (false) { // tournament selection
+        if (true) { // tournament selection
             // randomly select 5 individuals from the population
-            int[] indices = new int[populationSize];
+            List<Integer> list = new ArrayList<>();
             for (int i = 0; i < populationSize; i++) {
-                indices[i] = i;
+                list.add(i);
             }
-            Collections.shuffle(Arrays.asList(indices));
+            Collections.shuffle(list);
+            int[] indices = list.stream().mapToInt(Integer::intValue).toArray();
+
             Individual[] tournament = new Individual[5];
             for (int i = 0; i < 5; i++) {
                 tournament[i] = population[indices[i]];
@@ -257,6 +254,16 @@ public class GeneticAlgorithm {
         } else {
             return findBestIndividuals(population);
         }
+    }
+
+    public Individual findOneBestIndividual(Individual[] localPopulation) {
+        Individual bestIndividual = localPopulation[0];
+        for (Individual individual : localPopulation) {
+            if (individual.getFitness() < bestIndividual.getFitness()) {
+                bestIndividual = individual;
+            }
+        }
+        return bestIndividual;
     }
 
     public Individual[] findBestIndividuals(Individual[] localPopulation) {
@@ -275,91 +282,90 @@ public class GeneticAlgorithm {
     }
 
     public Individual[] crossover(int[] parent1, int[] parent2) {
-        if (true) { // order 1 crossover
-            // remove the last nurse from both parents
-            parent1 = Arrays.copyOf(parent1, parent1.length - 1);
-            parent2 = Arrays.copyOf(parent2, parent2.length - 1);
+        // remove the last nurse from both parents
+        parent1 = Arrays.copyOf(parent1, parent1.length - 1);
+        parent2 = Arrays.copyOf(parent2, parent2.length - 1);
 
-            int chromosomeLength = parent1.length;
+        int chromosomeLength = parent1.length;
 
-            int cuttingPoint1 = (int) (Math.random() * (chromosomeLength) - 1);
-            int cuttingPoint2 = (int) (Math.random() * (chromosomeLength));
+        int cuttingPoint1 = (int) (Math.random() * (chromosomeLength) - 1);
+        int cuttingPoint2 = (int) (Math.random() * (chromosomeLength));
 
-            if (cuttingPoint1 == cuttingPoint2) {
-                cuttingPoint2++;
+        if (cuttingPoint1 == cuttingPoint2) {
+            cuttingPoint2++;
+        }
+        if (cuttingPoint1 > cuttingPoint2) {
+            cuttingPoint1 = cuttingPoint1 + cuttingPoint2;
+            cuttingPoint2 = cuttingPoint1 - cuttingPoint2;
+            cuttingPoint1 = cuttingPoint1 - cuttingPoint2;
+        }
+        if (cuttingPoint1 == 0 && cuttingPoint2 == chromosomeLength - 1) {
+            if (Math.random() < 0.5) {
+                cuttingPoint1 += 2;
+            } else {
+                cuttingPoint2 -= 2;
             }
-            if (cuttingPoint1 > cuttingPoint2) {
-                cuttingPoint1 = cuttingPoint1 + cuttingPoint2;
-                cuttingPoint2 = cuttingPoint1 - cuttingPoint2;
-                cuttingPoint1 = cuttingPoint1 - cuttingPoint2;
-            }
-            if (cuttingPoint1 == 0 && cuttingPoint2 == chromosomeLength - 1) {
-                if (Math.random() < 0.5) {
-                    cuttingPoint1 += 2;
-                } else {
-                    cuttingPoint2 -= 2;
-                }
-            }
+        }
 
-            int[] child1 = new int[chromosomeLength];
-            int[] child2 = new int[chromosomeLength];
+        int[] child1 = new int[chromosomeLength];
+        int[] child2 = new int[chromosomeLength];
 
-            for (int i = 0; i < chromosomeLength; i++) {
-                child1[i] = 0;
-                child2[i] = 0;
-            }
+        for (int i = 0; i < chromosomeLength; i++) {
+            child1[i] = 0;
+            child2[i] = 0;
+        }
 
-            for (int i = cuttingPoint1; i < cuttingPoint2 + 1; i++) {
-                child1[i] = parent1[i];
-                child2[i] = parent2[i];
-            }
+        for (int i = cuttingPoint1; i < cuttingPoint2 + 1; i++) {
+            child1[i] = parent1[i];
+            child2[i] = parent2[i];
+        }
 
-            // System.out.println("Cutting point 1: " + cuttingPoint1 + " Cutting point 2: " + cuttingPoint2);
-            // System.out.println("Parent 1: " + Arrays.toString(parent1) + " Parent 2: " + Arrays.toString(parent2));
-            // System.out.println("Child 1:  " + Arrays.toString(child1) + " Child 2:  " + Arrays.toString(child2));
+        // System.out.println("Cutting point 1: " + cuttingPoint1 + " Cutting point 2: " + cuttingPoint2);
+        // System.out.println("Parent 1: " + Arrays.toString(parent1) + " Parent 2: " + Arrays.toString(parent2));
+        // System.out.println("Child 1:  " + Arrays.toString(child1) + " Child 2:  " + Arrays.toString(child2));
 
-            int parentIndex = cuttingPoint2 + 1;
-            int childIndex = cuttingPoint2 + 1;
-            if (cuttingPoint2 == chromosomeLength - 1) {
-                parentIndex = 0;
-                childIndex = 0;
-            }
+        int parentIndex = cuttingPoint2 + 1;
+        int childIndex = cuttingPoint2 + 1;
+        if (cuttingPoint2 == chromosomeLength - 1) {
+            parentIndex = 0;
+            childIndex = 0;
+        }
 
-            // child1 = orderOneCrossover(child1, parent2, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
-            // child2 = orderOneCrossover(child2, parent1, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
-
+        if(false) {
+            child1 = orderOneCrossover(child1, parent2, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
+            child2 = orderOneCrossover(child2, parent1, cuttingPoint1, cuttingPoint2, parentIndex, childIndex, chromosomeLength);
+        } else {
             child1 = partiallyMappedCrossover(child1, parent1, parent2, cuttingPoint1, cuttingPoint2, chromosomeLength);
             child2 = partiallyMappedCrossover(child2, parent2, parent1, cuttingPoint1, cuttingPoint2, chromosomeLength);
-            
-            // add the last nurse back to the children
-            child1 = Arrays.copyOf(child1, child1.length + 1);
-            child2 = Arrays.copyOf(child2, child2.length + 1);
-            child1[child1.length - 1] = -nbrNurses;
-            child2[child2.length - 1] = -nbrNurses;
-
-            // check that both children have all numbers -nbrNurses -> nbrPatients, print error message if not
-            for (int i = -nbrNurses; i < 101; i++) {
-                boolean flag1 = false;
-                boolean flag2 = false;
-                for (int j = 0; j < chromosomeLength+1; j++) {
-                    if (child1[j] == i) {
-                        flag1 = true;
-                    }
-                    if (child2[j] == i) {
-                        flag2 = true;
-                    }
-                }
-                if (!flag1 && i!=0) {
-                    System.out.println("Number " + i + " is missing from child 1");
-                }
-                if (!flag2 && i!=0) {
-                    System.out.println("Number " + i + " is missing from child 2");
-                }
-            }
-
-            return new Individual[] {new Individual(child1, 0), new Individual(child2, 0)};
         }
-        return null;
+        
+        // add the last nurse back to the children
+        child1 = Arrays.copyOf(child1, child1.length + 1);
+        child2 = Arrays.copyOf(child2, child2.length + 1);
+        child1[child1.length - 1] = -nbrNurses;
+        child2[child2.length - 1] = -nbrNurses;
+
+        // check that both children have all numbers -nbrNurses -> nbrPatients, print error message if not
+        // for (int i = -nbrNurses; i < 101; i++) {
+        //     boolean flag1 = false;
+        //     boolean flag2 = false;
+        //     for (int j = 0; j < chromosomeLength+1; j++) {
+        //         if (child1[j] == i) {
+        //             flag1 = true;
+        //         }
+        //         if (child2[j] == i) {
+        //             flag2 = true;
+        //         }
+        //     }
+        //     if (!flag1 && i!=0) {
+        //         System.out.println("Number " + i + " is missing from child 1");
+        //     }
+        //     if (!flag2 && i!=0) {
+        //         System.out.println("Number " + i + " is missing from child 2");
+        //     }
+        // }
+
+        return new Individual[] {new Individual(child1, 0), new Individual(child2, 0)};
     }
 
     public int[] partiallyMappedCrossover(int[] child1, int[] parent1, int[] parent2, int cuttingPoint1, int cuttingPoint2, int chromosomeLength) {
@@ -462,38 +468,90 @@ public class GeneticAlgorithm {
     
     public void mutation(Individual child) {
         // 50% chance of mutation
-        if (Math.random() < 0.5) {
-            int[] chromosome = child.getChromosome();
-            int index1 = (int) (Math.random() * (chromosome.length - 1));
-            int index2 = (int) (Math.random() * (chromosome.length - 1));
+        // if (Math.random() < 1) {
+        int[] chromosome = child.getChromosome();
 
+        // int temp = chromosome[index1];
+        // chromosome[index1] = chromosome[index2];
+        // chromosome[index2] = temp;
+        // child.setChromosome(chromosome);
+
+        if (Math.random() < 0.6) { // randomly swap two elements in the same group (divided by negative numbers)
+            intraSwapMutation(child, chromosome);
+        }
+        if (Math.random() < 0.6) { // randomly swap two elements in the chromosome
+            interSwapMutation(child, chromosome);
+        }
+        if (Math.random() < 0.1) { // pick two random indices and reverse the elements between them
+            reverseMutation(child, chromosome);
+        }
+        // }
+    }
+    
+    public void intraSwapMutation(Individual child, int[] chromosome) {
+        int group = (int) (Math.random() * nbrNurses);
+        int count = 0;
+        int start = 0;
+        int end = 0;
+        if (group == 0) {
+            start = 0;
+            for (int i = 0; i < chromosome.length; i++) {
+                if (chromosome[i] < 0) {
+                    end = i;
+                    break;
+                }
+            }
+        } else {
+            for (int i = 0; i < chromosome.length; i++) {
+                if (chromosome[i] < 0) {
+                    count++;
+                    if (count == group - 1) {
+                        start = i + 1;
+                    } else if (count == group) {
+                        end = i;
+                        break;
+                    }
+                }
+                
+            }
+        }
+        if (end - start > 2) {
+            // find two random indices in the group and swap them
+            int index1 = (int) (Math.random() * (end - start - 1) + start);
+            int index2 = (int) (Math.random() * (end - start - 1) + start);
             int temp = chromosome[index1];
             chromosome[index1] = chromosome[index2];
             chromosome[index2] = temp;
             child.setChromosome(chromosome);
-
-            // if (Math.random() < 1.0) {
-            //     // randomly swap two elements in the chromosome
-            //     int temp = chromosome[index1];
-            //     chromosome[index1] = chromosome[index2];
-            //     chromosome[index2] = temp;
-            //     child.setChromosome(chromosome);
-            // } else {
-            //     // pick two random indices and reverse the elements between them
-            //     if (index1 > index2) {
-            //         index1 = index1 + index2;
-            //         index2 = index1 - index2;
-            //         index1 = index1 - index2;
-            //     }
-            //     int[] temp = Arrays.copyOfRange(chromosome, index1, index2);
-            //     for (int i = 0; i < temp.length; i++) {
-            //         chromosome[index1 + i] = temp[temp.length - 1 - i];
-            //     }
-            //     child.setChromosome(chromosome);
-            // }
         }
     }
-    
+
+    public void interSwapMutation(Individual child, int[] chromosome) {
+        int index1 = (int) (Math.random() * (chromosome.length - 1));
+        int index2 = (int) (Math.random() * (chromosome.length - 1));
+
+        int temp = chromosome[index1];
+        chromosome[index1] = chromosome[index2];
+        chromosome[index2] = temp;
+        child.setChromosome(chromosome);
+    }
+
+    public void reverseMutation(Individual child, int[] chromosome) {
+        int index1 = (int) (Math.random() * (chromosome.length - 1));
+        int index2 = (int) (Math.random() * (chromosome.length - 1));
+
+        if (index1 > index2) {
+            index1 = index1 + index2;
+            index2 = index1 - index2;
+            index1 = index1 - index2;
+        }
+        int[] temp = Arrays.copyOfRange(chromosome, index1, index2);
+        for (int i = 0; i < temp.length; i++) {
+            chromosome[index1 + i] = temp[temp.length - 1 - i];
+        }
+        child.setChromosome(chromosome);
+    }
+
     public void survivorSelection(Individual child1, Individual child2) {
         // find the two individuals in the population with the worst fitness and replace them with the children
         double worstFitness1 = population[0].getFitness();
@@ -524,8 +582,44 @@ public class GeneticAlgorithm {
         }
     }
 
+    public Individual[] getPopulation() {
+        return population;
+    }
+
+    public void setPopulation(Individual[] population) {
+        this.population = population;
+    }
     public static void main(String[] args) {
         GeneticAlgorithm GA = new GeneticAlgorithm(10, "src/main/resources/train/train_0.json", null);
+        
+        // GA.generatePopulation();
+        // Individual[] population = GA.getPopulation();
+
+        // double bestFitnessBefore = population[0].getFitness();
+        // for (Individual individual : population) {
+        //     if (individual.getFitness() < bestFitnessBefore) {
+        //         bestFitnessBefore = individual.getFitness();
+        //     }
+        // }
+        // System.out.println("Best fitness before: " + bestFitnessBefore);
+        
+        // GA.runGA(population, 100000);
+
+        Individual individ = new Individual(new int[]{10, 11, -16, 55, 54, 53, 56, 58, -20, 32, 33, 37, 34, 22, -18, 57, 31, 35, 38, 39, 36, 52, -22, 48, 51, -5, 43, 42, 40, 44, 46, 47, -14, 21, -24, 81, 78, 61, 64, 68, 66, -8, 18, 19, 16, 14, 2, 1, 75, -7, 27, 29, -6, 98, 96, 97, 100, 99, -4, 3, 7, 8, 9, 6, 4, -15, -9, 90, 87, 95, 94, 92, 93, -11, 74, 72, 60, 59, -10, 24, 23, -2, -19, 5, 86, 73, 77, 80, -13, 25, 30, 28, 26, 50, 49, -1, 62, -23, 76, 71, 70, 79, 89, 91, -12, 67, 41, 45, 69, -3, 20, -21, 65, 63, 83, 82, 84, 85, 88, -17, 13, 17, 15, 12, -25}, 0);
+        GA.calculateFitness(individ);
+        System.out.println(individ.getFitness());
+
+        // population = GA.getPopulation();
+        // Individual bestIndividual = population[0];
+        // double bestFitnessAfter = population[0].getFitness();
+        // for (Individual individual : population) {
+        //     if (individual.getFitness() < bestFitnessAfter) {
+        //         bestIndividual = individual;
+        //         bestFitnessAfter = individual.getFitness();
+        //     }
+        // }
+        // System.out.println("Best fitness after: " + bestFitnessAfter);
+
     }
 }
 
