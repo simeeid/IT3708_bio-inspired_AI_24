@@ -69,13 +69,14 @@ public class GeneticAlgorithm {
         }
         System.out.println("Best fitness before: " + bestFitnessBefore);
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 10000; i++) {
             Individual[] parents = parentSelection();
             Individual[] children = crossover(parents[0].getChromosome(), parents[1].getChromosome());
             mutation(children[0]); mutation(children[1]);
             calculateFitness(children[0]); calculateFitness(children[1]);
             survivorSelection(children[0], children[1]);
         }
+
         double bestFitnessAfter = population[0].getFitness();
         for (Individual individual : population) {
             if (individual.getFitness() < bestFitnessAfter) {
@@ -111,10 +112,10 @@ public class GeneticAlgorithm {
             }
             // add nbr_nurses - 1 0s to the list
             for (int j = 0; j < nbrNurses - 1; j++) {
-                list.add(0);
+                list.add(-j - 1);
             }
             Collections.shuffle(list);
-            list.add(0); // add a 0 to the end of the list
+            list.add(- nbrNurses); // add a 0 to the end of the list
             population[i].setChromosome(list.stream().mapToInt(Integer::intValue).toArray());
         }
 
@@ -167,7 +168,7 @@ public class GeneticAlgorithm {
         int demand = 0;
         int group = 0;
         for (int patient : individualChromosome) {
-            if (patient == 0) {
+            if (patient < 0) {
                 groupwiseDemand[group] = demand;
                 group++;
                 demand = 0;
@@ -184,8 +185,15 @@ public class GeneticAlgorithm {
         // each patient has a time window, and the nurse must arrive within the time window, else nurse has to wait
         // each patient has a service time, and the nurse must spend that much time with the patient
 
-        int[] individualChromosome = individual.getChromosome();
+        int[] individualChromosome = individual.getChromosome().clone();
         int numberOfPatientsMissed = 0;
+
+        // replace all <0 with 0
+        for (int i = 0; i < individualChromosome.length; i++) {
+            if (individualChromosome[i] < 0) {
+                individualChromosome[i] = 0;
+            }
+        }
 
         int group = 0;
         double time = 0;
@@ -297,8 +305,8 @@ public class GeneticAlgorithm {
             int[] child2 = new int[chromosomeLength];
 
             for (int i = 0; i < chromosomeLength; i++) {
-                child1[i] = -1;
-                child2[i] = -1;
+                child1[i] = 0;
+                child2[i] = 0;
             }
 
             for (int i = cuttingPoint1; i < cuttingPoint2 + 1; i++) {
@@ -323,8 +331,8 @@ public class GeneticAlgorithm {
             // add the last nurse back to the children
             child1 = Arrays.copyOf(child1, child1.length + 1);
             child2 = Arrays.copyOf(child2, child2.length + 1);
-            child1[child1.length - 1] = 0;
-            child2[child2.length - 1] = 0;
+            child1[child1.length - 1] = -nbrNurses;
+            child2[child2.length - 1] = -nbrNurses;
 
             return new Individual[] {new Individual(child1, 0), new Individual(child2, 0)};
         }
@@ -334,24 +342,11 @@ public class GeneticAlgorithm {
     public int[] orderOneCrossover(int[] child1, int[] parent2, int cuttingPoint1, int cuttingPoint2, int parentIndex, int childIndex, int chromosomeLength) {
         while (true) {
             boolean flag = false;
-            int nbrZeroes = 0;
 
-            if (parent2[parentIndex] == 0) {
-                for (int i = 0; i < chromosomeLength; i++) {
-                    if (child1[i] == 0) {
-                        nbrZeroes++;
-                        if (nbrZeroes == nbrNurses - 1) {
-                            flag = true;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                for (int i = 0; i < chromosomeLength; i++) {
-                    if (child1[i] == parent2[parentIndex]) {
-                        flag = true;
-                        break;
-                    }
+            for (int i = 0; i < chromosomeLength; i++) {
+                if (child1[i] == parent2[parentIndex]) {
+                    flag = true;
+                    break;
                 }
             }
 
@@ -373,18 +368,10 @@ public class GeneticAlgorithm {
                 }
             }
         }
-        // // print the number of 0s in the child
-        // int nbrZeroes = 0;
-        // for (int i = 0; i < chromosomeLength; i++) {
-        //     if (child1[i] == 0) {
-        //         nbrZeroes++;
-        //     }
-        // }
-        // System.out.println("Number of 0s in the child: " + nbrZeroes);
 
         // // check that all numbers 1 to n are present in the child
         // boolean noNumMissing = true;
-        // for (int i = 1; i < 101; i++) {
+        // for (int i = -24; i < 101; i++) {
         //     for (int j = 0; j < chromosomeLength; j++) {
         //         if (child1[j] == i) {
         //             break;
