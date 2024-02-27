@@ -2,7 +2,6 @@
     "instance_name": "train_0",
     "nbr_nurses": 25,
     "capacity_nurse": 200,
-    "benchmark": 827.3,
     "depot": {
         "return_time": 1236,
         "x_coord": 40,
@@ -13,24 +12,24 @@
             "x_coord": 45,
             "y_coord": 68,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1217,
+            "start_time": 912,
+            "end_time": 1057,
             "care_time": 90
         },
         "2": {
             "x_coord": 45,
             "y_coord": 70,
             "demand": 30,
-            "start_time": 0,
-            "end_time": 1215,
+            "start_time": 825,
+            "end_time": 960,
             "care_time": 90
         },
         "3": {
             "x_coord": 42,
             "y_coord": 66,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1219,
+            "start_time": 65,
+            "end_time": 236,
             "care_time": 90
         },
         "4": {
@@ -45,8 +44,8 @@
             "x_coord": 42,
             "y_coord": 65,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1220,
+            "start_time": 15,
+            "end_time": 157,
             "care_time": 90
         },
         "6": {
@@ -61,8 +60,8 @@
             "x_coord": 40,
             "y_coord": 66,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1220,
+            "start_time": 170,
+            "end_time": 315,
             "care_time": 90
         },
         "8": {
@@ -101,8 +100,8 @@
             "x_coord": 25,
             "y_coord": 85,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1197,
+            "start_time": 652,
+            "end_time": 811,
             "care_time": 90
         },
         "13": {
@@ -173,8 +172,8 @@
             "x_coord": 30,
             "y_coord": 52,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1225,
+            "start_time": 914,
+            "end_time": 1055,
             "care_time": 90
         },
         "22": {
@@ -213,8 +212,8 @@
             "x_coord": 25,
             "y_coord": 55,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1220,
+            "start_time": 622,
+            "end_time": 791,
             "care_time": 90
         },
         "27": {
@@ -253,8 +252,8 @@
             "x_coord": 10,
             "y_coord": 35,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1202,
+            "start_time": 200,
+            "end_time": 327,
             "care_time": 90
         },
         "32": {
@@ -277,8 +276,8 @@
             "x_coord": 8,
             "y_coord": 45,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1203,
+            "start_time": 751,
+            "end_time": 906,
             "care_time": 90
         },
         "35": {
@@ -301,8 +300,8 @@
             "x_coord": 2,
             "y_coord": 40,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1196,
+            "start_time": 383,
+            "end_time": 524,
             "care_time": 90
         },
         "38": {
@@ -389,8 +388,8 @@
             "x_coord": 28,
             "y_coord": 30,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1212,
+            "start_time": 632,
+            "end_time": 783,
             "care_time": 90
         },
         "49": {
@@ -405,8 +404,8 @@
             "x_coord": 26,
             "y_coord": 32,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1213,
+            "start_time": 815,
+            "end_time": 970,
             "care_time": 90
         },
         "51": {
@@ -421,8 +420,8 @@
             "x_coord": 25,
             "y_coord": 35,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1214,
+            "start_time": 912,
+            "end_time": 1059,
             "care_time": 90
         },
         "53": {
@@ -477,8 +476,8 @@
             "x_coord": 38,
             "y_coord": 15,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1200,
+            "start_time": 651,
+            "end_time": 830,
             "care_time": 90
         },
         "60": {
@@ -581,8 +580,8 @@
             "x_coord": 53,
             "y_coord": 30,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1212,
+            "start_time": 450,
+            "end_time": 595,
             "care_time": 90
         },
         "73": {
@@ -605,8 +604,8 @@
             "x_coord": 45,
             "y_coord": 65,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1220,
+            "start_time": 997,
+            "end_time": 1158,
             "care_time": 90
         },
         "76": {
@@ -661,16 +660,16 @@
             "x_coord": 75,
             "y_coord": 55,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1200,
+            "start_time": 369,
+            "end_time": 510,
             "care_time": 90
         },
         "83": {
             "x_coord": 72,
             "y_coord": 55,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1203,
+            "start_time": 265,
+            "end_time": 428,
             "care_time": 90
         },
         "84": {
@@ -685,8 +684,8 @@
             "x_coord": 68,
             "y_coord": 60,
             "demand": 30,
-            "start_time": 0,
-            "end_time": 1206,
+            "start_time": 555,
+            "end_time": 702,
             "care_time": 90
         },
         "86": {
@@ -733,8 +732,8 @@
             "x_coord": 60,
             "y_coord": 60,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1213,
+            "start_time": 836,
+            "end_time": 979,
             "care_time": 90
         },
         "92": {
@@ -757,24 +756,24 @@
             "x_coord": 65,
             "y_coord": 82,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1195,
+            "start_time": 285,
+            "end_time": 426,
             "care_time": 90
         },
         "95": {
             "x_coord": 62,
             "y_coord": 80,
             "demand": 30,
-            "start_time": 0,
-            "end_time": 1198,
+            "start_time": 196,
+            "end_time": 329,
             "care_time": 90
         },
         "96": {
             "x_coord": 60,
             "y_coord": 80,
             "demand": 10,
-            "start_time": 0,
-            "end_time": 1199,
+            "start_time": 95,
+            "end_time": 246,
             "care_time": 90
         },
         "97": {
@@ -789,8 +788,8 @@
             "x_coord": 58,
             "y_coord": 75,
             "demand": 20,
-            "start_time": 0,
-            "end_time": 1205,
+            "start_time": 30,
+            "end_time": 174,
             "care_time": 90
         },
         "99": {
