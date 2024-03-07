@@ -1,13 +1,12 @@
 package com.simeneidal.GA_app;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.ArrayList;
-import java.util.Arrays;
+import org.apache.commons.math3.ml.clustering.*;
+import org.apache.commons.math3.ml.distance.EuclideanDistance;
+
+import java.util.*;
 
 import com.google.gson.Gson;
+import com.simeneidal.GA_app.JsonData.Patient;
+
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -69,7 +68,8 @@ public class GeneticAlgorithm {
         
         if (Objects.isNull(localPopulation)) {
             // generatePopulation();
-            generateGreedyPopulation();
+            // generateGreedyPopulation();
+            generateClusteredPopulation();
         } else {
             population = localPopulation;
         }
@@ -80,7 +80,7 @@ public class GeneticAlgorithm {
         boolean secondFlag = true;
         
         for (int i = 0; i < nbrGenerations; i++) {
-            if (false && (i + 1) % 100000 == 0) {
+            if (false && (i) % 100000 == 0) {
                 // find the next best individual
                 // Individual bestIndividual = population[0];
                 double bestFitness = bestIndividual.getFitness();
@@ -119,7 +119,7 @@ public class GeneticAlgorithm {
             }
 
             Individual[] parents = parentSelection();
-            if (Math.random() < 0.1) {
+            if (true && Math.random() < 0.1) {
                 Individual parent1 = new Individual(parents[0].getChromosome().clone(), 0);
                 Individual parent2 = new Individual(parents[1].getChromosome().clone(), 0);
 
@@ -135,7 +135,6 @@ public class GeneticAlgorithm {
         }
     }
     
-
     public void cutLongestTravel(Individual bestIndividual) {
         Individual[] parentCopies = new Individual[populationSize];
         int[] chromosome = bestIndividual.getChromosome().clone();
@@ -336,6 +335,7 @@ public class GeneticAlgorithm {
                 }
 
                 chromosome[minIncreaseIndex] = temp[j];
+
                 if (j == 0) {
                     start = 1;
                 } else if ( 0 < j && j < 26) {
@@ -390,6 +390,194 @@ public class GeneticAlgorithm {
         }
     }
 
+    public void generateClusteredPopulation() {
+        Individual[] tempPopulation = new Individual[populationSize];
+
+        // for all patients in the map, id is set to the key value
+        for (Map.Entry<String, JsonData.Patient> entry : patients.entrySet()) {
+            String id = entry.getKey();
+            JsonData.Patient patient = entry.getValue();
+            // id must be an integer
+            patient.setId(Integer.parseInt(id));
+        }
+        // Convert patients to points for clustering
+        List<Clusterable> patientPoints = new ArrayList<>();
+        for (JsonData.Patient patient : patients.values()) {
+            patientPoints.add(new DoublePoint(new double[]{patient.getXCoord(), patient.getYCoord()}));
+        }
+
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 5; j++) {
+                // Perform clustering
+                KMeansPlusPlusClusterer<Clusterable> clusterer = new KMeansPlusPlusClusterer<>(8 + i, 1000, new EuclideanDistance());
+                List<CentroidCluster<Clusterable>> clusters = clusterer.cluster(patientPoints);
+
+                // Convert clusters back to patients
+                List<List<JsonData.Patient>> patientClusters = new ArrayList<>();
+                for (CentroidCluster<Clusterable> cluster : clusters) {
+                    List<JsonData.Patient> patientCluster = new ArrayList<>();
+                    for (Clusterable point : cluster.getPoints()) {
+                        patientCluster.add(findPatient(patients, point));
+                    }
+                    patientClusters.add(patientCluster);
+                }
+
+                // Individual individual1 = makeIndividualOfPatientClusters(patientClusters);
+
+                sortOnEndTime(patientClusters);
+                Individual individual2 = makeIndividualOfPatientClusters(patientClusters);
+
+                // System.out.println(individual2.getFitness());
+
+                tempPopulation[i*5 + j] = individual2;
+            }
+        }
+
+        population = tempPopulation;
+
+        // sortOnEndTimeAndDistance(patientClusters);
+        // Individual individual3 = makeIndividualOfPatientClusters(patientClusters);
+
+        // sortOnNearestNeighbor(patientClusters);
+        // Individual individual4 = makeIndividualOfPatientClusters(patientClusters);
+
+
+
+        // System.out.println(Arrays.toString(tempArray));
+        // System.out.println(individual1.getFitness());
+        // System.out.println(individual2.getFitness());
+        // System.out.println(individual3.getFitness());
+        // System.out.println(individual4.getFitness());
+
+        // Gson gson = new Gson();
+        // String json = gson.toJson(patientClusters);
+        // try (FileWriter writer = new FileWriter("clusters.json")) {
+        //     writer.write(json);
+        // } catch (IOException e) {
+        //     e.printStackTrace();
+        // }
+
+        // for (List<JsonData.Patient> cluster : patientClusters) {
+        //     System.out.println(cluster.size());
+        // }
+    }
+
+    private Individual makeIndividualOfPatientClusters(List<List<JsonData.Patient>> patientClusters) {
+        int[] tempArray = new int[nbrPatients + nbrNurses];
+        int index = 0;
+        int number = 1;
+        // for each cluster, add the patients to the chromosome, divide each cluster with a negative number
+        for (List<JsonData.Patient> cluster : patientClusters) {
+            for (JsonData.Patient patient : cluster) {
+                tempArray[index] = patient.getId();
+                index++;
+            }
+            tempArray[index] = -number;
+            number++;
+            index++;
+        }
+
+        for (int i = index; i < tempArray.length; i++) {
+            tempArray[i] = -number;
+            number++;
+        }
+
+        Individual individual = new Individual(tempArray, 0);
+        calculateFitness(individual);
+
+        return individual;
+    }
+
+    private JsonData.Patient findPatient(Map<String, JsonData.Patient> patients, Clusterable point) {
+        for (JsonData.Patient patient : patients.values()) {
+            if (patient.getXCoord() == point.getPoint()[0] && patient.getYCoord() == point.getPoint()[1]) {
+                return patient;
+            }
+        }
+        return null;
+    }
+
+    public void sortOnEndTime(List<List<JsonData.Patient>> patientClusters) {
+        for (List<JsonData.Patient> cluster : patientClusters) {
+            // Sort the patients based on end_time
+            cluster.sort(Comparator.comparing(JsonData.Patient::getEndTime));
+        }
+    }
+
+    public void sortOnEndTimeAndDistance(List<List<JsonData.Patient>> patientClusters) {
+        for (List<JsonData.Patient> cluster : patientClusters) {
+            if (cluster.size() < 3) {
+                continue;
+            }
+            // Sort patients based on distance to depot
+            cluster.sort(Comparator.comparingDouble(patient -> calculateDistance(depot, patient)));
+
+            // Get two closest patients
+            JsonData.Patient closestPatient1 = cluster.get(0);
+            JsonData.Patient closestPatient2 = cluster.get(1);
+
+            // Remove two closest patients from cluster
+            cluster.remove(closestPatient1);
+            cluster.remove(closestPatient2);
+
+            // Sort the rest of the patients based on end_time
+            cluster.sort(Comparator.comparing(JsonData.Patient::getEndTime));
+
+            // Add the closest patients back to the cluster
+            if (closestPatient1.getEndTime() < closestPatient2.getEndTime()) {
+                cluster.add(0, closestPatient1);
+                cluster.add(closestPatient2);
+            } else {
+                cluster.add(0, closestPatient2);
+                cluster.add(closestPatient1);
+            }
+        }
+    }
+
+    public void sortOnNearestNeighbor(List<List<JsonData.Patient>> patientClusters) {
+        for (List<JsonData.Patient> cluster : patientClusters) {
+            List<JsonData.Patient> path = new ArrayList<>();
+            
+            cluster.sort(Comparator.comparingDouble(patient -> calculateDistance(depot, patient)));
+            JsonData.Patient closestPatient = cluster.get(0);
+            path.add(closestPatient);
+            cluster.remove(closestPatient);
+
+            while (!cluster.isEmpty()) {
+                final JsonData.Patient current = closestPatient;
+
+                // Sort patients based on distance to current patient
+                cluster.sort(Comparator.comparingDouble(patient -> calculateDistance(current, patient)));
+
+                // Get the closest patient and add it to the path
+                closestPatient = cluster.get(0);
+                path.add(closestPatient);
+
+                // Remove the closest patient from the cluster
+                cluster.remove(closestPatient);
+
+                // Update current patient
+                // current = closestPatient;
+            }
+
+            // Now 'path' contains the patients sorted based on distance to each other
+            // Replace the original cluster with the sorted path
+            cluster.addAll(path);
+        }
+    }
+
+    private double calculateDistance(JsonData.Patient patient1, JsonData.Patient patient2) {
+        double dx = (patient1.getXCoord() - patient2.getXCoord());
+        double dy = (patient1.getYCoord() - patient2.getYCoord());
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private double calculateDistance(JsonData.Depot depot, JsonData.Patient patient2) {
+        double dx = (depot.getXCoord() - patient2.getXCoord());
+        double dy = (depot.getYCoord() - patient2.getYCoord());
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
     public void calculateFitness(Individual individual, boolean... flags) {
         // calculate the fitness of the individual
         // each individual consists of a list of patients and nurses
@@ -402,6 +590,7 @@ public class GeneticAlgorithm {
         Object[] result = calculateTimeAndTimeRequirement(individual);
         double totalTravelTime = (double) result[0];
         int numberOfPatientsMissed = (int) result[1];
+        int numberOfNursesOverReturnTime = (int) result[2];
 
         int[] groupwiseDemand = totalGroupwiseDemand(individual);
 
@@ -421,7 +610,7 @@ public class GeneticAlgorithm {
         // number++;
         // boolean flag = flags.length > 0 ? true : false;
 
-        individual.setFitness(totalTravelTime + numberOfPatientsMissed * 500 + numberOfNursesOverCapacity * 500);
+        individual.setFitness(totalTravelTime + numberOfPatientsMissed * 500 + numberOfNursesOverCapacity * 500 + numberOfNursesOverReturnTime * 500);
         // System.out.println(individual.getFitness());
     }
 
@@ -455,6 +644,7 @@ public class GeneticAlgorithm {
 
         int[] individualChromosome = individual.getChromosome().clone();
         int numberOfPatientsMissed = 0;
+        int numberOfNursesOverReturnTime = 0;
 
         // replace all <0 with 0
         for (int i = 0; i < individualChromosome.length; i++) {
@@ -504,6 +694,9 @@ public class GeneticAlgorithm {
                 }
                 time += careTime;
             } else {
+                if (time > depot.getReturnTime()) {
+                    numberOfNursesOverReturnTime++;
+                }
                 group++;
                 time = 0;
             }
@@ -511,9 +704,10 @@ public class GeneticAlgorithm {
             previous = current;
         }
         
-        Object[] result = new Object[2];
+        Object[] result = new Object[3];
         result[0] = totalTravelTime;
-        result[1] = numberOfPatientsMissed; 
+        result[1] = numberOfPatientsMissed;
+        result[2] = numberOfNursesOverReturnTime;
         return result;
     }
 
@@ -527,8 +721,8 @@ public class GeneticAlgorithm {
             Collections.shuffle(list);
             int[] indices = list.stream().mapToInt(Integer::intValue).toArray();
 
-            Individual[] tournament = new Individual[5];
-            for (int i = 0; i < 5; i++) {
+            Individual[] tournament = new Individual[10];
+            for (int i = 0; i < 10; i++) {
                 tournament[i] = population[indices[i]];
             }
 
@@ -1057,17 +1251,14 @@ public class GeneticAlgorithm {
         this.population = population;
     }
     public static void main(String[] args) {
-        GeneticAlgorithm GA = new GeneticAlgorithm(15, "src/main/resources/train/train_9.json", null);
-
-        // Individual individ = new Individual(new int[]{10, 11, -16, 55, 54, 53, -19, 56, 58, -20, 32, 33, 37, 34, 22, -18, 57, 31, 35, 38, 39, 36, 52, -22, 48, 51, -5, 43, 42, 40, 44, 46, 47, -14, 21, -24, 81, 78, 61, 64, 68, 66, -8, 18, 19, 16, 14, 2, 1, 75, -7, 27, 29, -6, 98, 96, 97, 100, 99, -4, 3, 7, 8, 9, 6, 4, 90, 87, 95, 94, 92, 93, -11, 74, 72, 60, 59, -10, 24, 23, -2, 5, 86, 73, 77, 80, -13, 25, 30, 28, 26, 50, 49, -1, 62, -23, 76, 71, 70, 79, 89, 91, -12, 67, 41, 45, 69, -3, 20, -21, 65, 63, -15, 83, 82, 84, -9, 85, 88, -17, 13, 17, 15, 12, -25}, 0);
-        // System.out.println(Arrays.toString(GA.cutLongestTravel(individ).getChromosome()));
-
-
-        // GA.generateGreedyPopulation();
-        // System.out.println(Arrays.toString(GA.getPopulation()[0].getChromosome()));
-        // System.out.println(GA.getPopulation()[0].getFitness());
+        GeneticAlgorithm GA = new GeneticAlgorithm(50, "src/main/resources/train/train_9.json", null);
 
         GA.generatePopulation();
+        GA.generateClusteredPopulation();
+
+// start
+
+        // GA.generatePopulation();
         Individual[] OGpopulation = GA.getPopulation();
 
         Individual bestTotalIndividual = OGpopulation[0];

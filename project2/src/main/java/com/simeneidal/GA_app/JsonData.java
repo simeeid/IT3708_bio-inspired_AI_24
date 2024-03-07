@@ -122,7 +122,18 @@ public class JsonData {
         @SerializedName("care_time")
         private int careTime;
 
+        private int id;
+
         // Getters and setters for the fields
+
+        public int getId() {
+            return id;
+        }
+
+        public void setId(int id) {
+            this.id = id;
+        }
+
         public int getXCoord() {
             return xCoord;
         }
