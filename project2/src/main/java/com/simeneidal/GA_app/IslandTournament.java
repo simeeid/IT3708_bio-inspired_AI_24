@@ -77,30 +77,32 @@ public class IslandTournament {
         System.out.println("Best individual fitness: " + bestIndividual.getFitness());
         // System.out.println("Best individual chromosome: " + Arrays.toString(bestIndividual.getChromosome()));
         
-        System.out.println();
-        System.out.print("[[");
-        if (bestIndividual.getChromosome()[0] < 0) {
-            System.out.print("], [");
-        } else {
-            System.out.print(bestIndividual.getChromosome()[0]);
-        }
-        int previous = bestIndividual.getChromosome()[0];
-        for (int j = 1; j < bestIndividual.getChromosome().length - 1; j++) {
-            if (bestIndividual.getChromosome()[j] < 0) {
-                System.out.print("], [");
-            } else if (previous > 0) {
-                System.out.print(", " + bestIndividual.getChromosome()[j]);
-            } else {
-                System.out.print(bestIndividual.getChromosome()[j]);
-            }
-            previous = bestIndividual.getChromosome()[j];
-        }
-        System.out.println("]]");
-        System.out.println();
+        ga.printSolution(bestIndividual);
+
+        // System.out.println();
+        // System.out.print("[[");
+        // if (bestIndividual.getChromosome()[0] < 0) {
+        //     System.out.print("], [");
+        // } else {
+        //     System.out.print(bestIndividual.getChromosome()[0]);
+        // }
+        // int previous = bestIndividual.getChromosome()[0];
+        // for (int j = 1; j < bestIndividual.getChromosome().length - 1; j++) {
+        //     if (bestIndividual.getChromosome()[j] < 0) {
+        //         System.out.print("], [");
+        //     } else if (previous > 0) {
+        //         System.out.print(", " + bestIndividual.getChromosome()[j]);
+        //     } else {
+        //         System.out.print(bestIndividual.getChromosome()[j]);
+        //     }
+        //     previous = bestIndividual.getChromosome()[j];
+        // }
+        // System.out.println("]]");
+        // System.out.println();
     }
 
     public static void main(String[] args) {
-        IslandTournament it = new IslandTournament(10, "src/main/resources/train/train_9.json", 20);
-        it.runIslandSimulation(5000, 25);
+        IslandTournament it = new IslandTournament(10, "src/main/resources/train/train_9.json", 8);
+        it.runIslandSimulation(5000, 10);
     }
 }
