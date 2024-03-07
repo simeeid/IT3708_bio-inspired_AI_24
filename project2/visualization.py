@@ -2,6 +2,8 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Will visualize the depot, patients and a solution
+
 # Load data from json file
 with open('file2.json', 'r') as f:
     data = json.load(f)
