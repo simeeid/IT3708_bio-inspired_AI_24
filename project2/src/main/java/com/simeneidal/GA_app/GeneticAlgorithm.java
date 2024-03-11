@@ -406,10 +406,10 @@ public class GeneticAlgorithm {
             patientPoints.add(new DoublePoint(new double[]{patient.getXCoord(), patient.getYCoord()}));
         }
 
-        for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 5; j++) {
+        for (int i = 0; i < 15; i++) {
+            for (int j = 0; j < 40; j+=4) {
                 // Perform clustering
-                KMeansPlusPlusClusterer<Clusterable> clusterer = new KMeansPlusPlusClusterer<>(8 + i, 1000, new EuclideanDistance());
+                KMeansPlusPlusClusterer<Clusterable> clusterer = new KMeansPlusPlusClusterer<>(3 + i, 5000, new EuclideanDistance());
                 List<CentroidCluster<Clusterable>> clusters = clusterer.cluster(patientPoints);
 
                 // Convert clusters back to patients
@@ -422,26 +422,24 @@ public class GeneticAlgorithm {
                     patientClusters.add(patientCluster);
                 }
 
-                // Individual individual1 = makeIndividualOfPatientClusters(patientClusters);
+                Individual individual1 = makeIndividualOfPatientClusters(patientClusters);
+                tempPopulation[i*40 + j] = individual1;
 
                 sortOnEndTime(patientClusters);
                 Individual individual2 = makeIndividualOfPatientClusters(patientClusters);
+                tempPopulation[i*40 + j + 1] = individual2;
 
-                // System.out.println(individual2.getFitness());
+                sortOnEndTimeAndDistance(patientClusters);
+                Individual individual3 = makeIndividualOfPatientClusters(patientClusters);
+                tempPopulation[i*40 + j + 2] = individual3;
 
-                tempPopulation[i*5 + j] = individual2;
+                sortOnNearestNeighbor(patientClusters);
+                Individual individual4 = makeIndividualOfPatientClusters(patientClusters);
+                tempPopulation[i*40 + j + 3] = individual4;
             }
         }
 
         population = tempPopulation;
-
-        // sortOnEndTimeAndDistance(patientClusters);
-        // Individual individual3 = makeIndividualOfPatientClusters(patientClusters);
-
-        // sortOnNearestNeighbor(patientClusters);
-        // Individual individual4 = makeIndividualOfPatientClusters(patientClusters);
-
-
 
         // System.out.println(Arrays.toString(tempArray));
         // System.out.println(individual1.getFitness());
@@ -721,8 +719,8 @@ public class GeneticAlgorithm {
             Collections.shuffle(list);
             int[] indices = list.stream().mapToInt(Integer::intValue).toArray();
 
-            Individual[] tournament = new Individual[10];
-            for (int i = 0; i < 10; i++) {
+            Individual[] tournament = new Individual[30];
+            for (int i = 0; i < 30; i++) {
                 tournament[i] = population[indices[i]];
             }
 
@@ -988,16 +986,16 @@ public class GeneticAlgorithm {
         //         reverseMutation(child, chromosome);
         //     }
 
-            if (Math.random() < 0.6) { // randomly swap two elements in the same group
+            if (Math.random() < 0.65) { // randomly swap two elements in the same group
                 intraSwapMutation(child, chromosome);
             }
-            if (Math.random() < 0.6) { // randomly move an element in the same group
+            if (Math.random() < 0.65) { // randomly move an element in the same group
                 intraMoveMutation(child, chromosome);
             }
-            if (Math.random() < 0.6) { // randomly swap two elements in the chromosome
+            if (Math.random() < 0.65) { // randomly swap two elements in the chromosome
                 interSwapMutation(child, chromosome);
             }
-            if (Math.random() < 0.6) { // randomly move an element from one group to another
+            if (Math.random() < 0.65) { // randomly move an element from one group to another
                 interMoveMutation(child, chromosome);
             }
             if (Math.random() < 0.1) { // pick two random indices and reverse the elements between them
@@ -1251,7 +1249,7 @@ public class GeneticAlgorithm {
         this.population = population;
     }
     public static void main(String[] args) {
-        GeneticAlgorithm GA = new GeneticAlgorithm(50, "src/main/resources/train/train_9.json", null);
+        GeneticAlgorithm GA = new GeneticAlgorithm(600, "src/main/resources/train/train_9.json", null);
 
         GA.generatePopulation();
         GA.generateClusteredPopulation();
@@ -1262,7 +1260,7 @@ public class GeneticAlgorithm {
         Individual[] OGpopulation = GA.getPopulation();
 
         Individual bestTotalIndividual = OGpopulation[0];
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 3; i++) {
             // double bestFitnessBefore = population[0].getFitness();
             // for (Individual individual : population) {
             //     if (individual.getFitness() < bestFitnessBefore) {
@@ -1271,7 +1269,7 @@ public class GeneticAlgorithm {
             // }
             // System.out.println("Best fitness before: " + bestFitnessBefore);
             
-            GA.runGA(null, 1000000);
+            GA.runGA(null, 1500000);
 
             // Individual individ = new Individual(new int[]{10, 11, -16, 55, 54, 53, 56, 58, -20, 32, 33, 37, 34, 22, -18, 57, 31, 35, 38, 39, 36, 52, -22, 48, 51, -5, 43, 42, 40, 44, 46, 47, -14, 21, -24, 81, 78, 61, 64, 68, 66, -8, 18, 19, 16, 14, 2, 1, 75, -7, 27, 29, -6, 98, 96, 97, 100, 99, -4, 3, 7, 8, 9, 6, 4, -15, -9, 90, 87, 95, 94, 92, 93, -11, 74, 72, 60, 59, -10, 24, 23, -2, -19, 5, 86, 73, 77, 80, -13, 25, 30, 28, 26, 50, 49, -1, 62, -23, 76, 71, 70, 79, 89, 91, -12, 67, 41, 45, 69, -3, 20, -21, 65, 63, 83, 82, 84, 85, 88, -17, 13, 17, 15, 12, -25}, 0);
             // GA.saveSolution(individ);
