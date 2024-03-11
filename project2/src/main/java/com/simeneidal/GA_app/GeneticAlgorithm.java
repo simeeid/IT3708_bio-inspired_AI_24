@@ -11,6 +11,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.text.DecimalFormat;
 
 public class GeneticAlgorithm {
 
@@ -1241,6 +1242,133 @@ public class GeneticAlgorithm {
         }
     }
 
+
+
+    public void printSolutionInDetail(Individual individual) {
+        DecimalFormat df = new DecimalFormat("#.##");
+        
+        System.out.println("Nurse capacity: " + capacityNurse);
+        System.out.println("Depot return time: " + depot.getReturnTime());
+        System.out.println("-----------------------------------");
+        
+        Object[] sequenceAndDuration = registerPatientSequence(individual);
+        String[] patientSequence = (String[]) sequenceAndDuration[0];
+        String[] routeDuration = (String[]) sequenceAndDuration[1];
+        double totalDuration = (double) sequenceAndDuration[2];
+
+        int[] totalGroupwiseDemand = totalGroupwiseDemand(individual);
+
+        for (int i = 0; i < patientSequence.length; i++) {
+            System.out.println("Nurse " + (i + 1) + " " + routeDuration[i] + " " + totalGroupwiseDemand[i] + " " + patientSequence[i]);
+        }
+        System.out.println("-----------------------------------");
+        System.out.println("Objective value (total duration): " + df.format(totalDuration));
+        System.out.println("Total travel time: " + df.format(individual.getFitness()));
+    }
+
+    public Object[] registerPatientSequence(Individual individual) {
+        // check if the individual meets the time requirement of each patient
+        // each patient has a time window, and the nurse must arrive within the time window, else nurse has to wait
+        // each patient has a service time, and the nurse must spend that much time with the patient
+
+        int[] individualChromosome = individual.getChromosome().clone();
+        int numberOfPatientsMissed = 0;
+        int numberOfNursesOverReturnTime = 0;
+
+        // define String list patientSequence of length nbrNurses
+        String[] patientSequence = new String[nbrNurses];
+        String[] routeDuration = new String[nbrNurses];
+        double totalDuration = 0;
+
+        DecimalFormat df = new DecimalFormat("#.##");
+
+        // define a string builder
+        StringBuilder solution = new StringBuilder();
+        solution.append("D (0)");
+
+        //solution.append("[[");
+        //solution.toString();
+
+        // replace all <0 with 0
+        for (int i = 0; i < individualChromosome.length; i++) {
+            if (individualChromosome[i] < 0) {
+                individualChromosome[i] = 0;
+            }
+        }
+
+        int group = 0;
+        double time = 0;
+
+        int previous = individualChromosome[0];
+        int current;
+        double totalTravelTime = 0;
+        
+        // if the first element is a patient, then the nurse has to travel from the depot to the patient
+        if (previous != 0) {
+            totalTravelTime += travelTimes[0][previous];
+            time += travelTimes[0][previous];
+
+            int careTime = patients.get(String.valueOf(previous)).getCareTime();
+            int endTime = patients.get(String.valueOf(previous)).getEndTime();
+            if (time > endTime || time + careTime > endTime) {
+                numberOfPatientsMissed++;
+            } else if (time < patients.get(String.valueOf(previous)).getStartTime()) {
+                time = patients.get(String.valueOf(previous)).getStartTime();
+            }
+            solution.append(" -> " + previous + " (" + df.format(time) + "-");
+            time += careTime;
+            solution.append(df.format(time) + ") [" + patients.get(String.valueOf(previous)).getStartTime() + "-" + patients.get(String.valueOf(previous)).getEndTime() + "]");
+            // System.out.println(solution.toString());
+        }
+
+        // for each pair of patients, the nurse has to travel the distance between them
+        // a nurse is denoted by a 0 in the individual, so when we encounter a 0 this will
+        // indicate that the nurse has to travel to depot, and a new nurse will start from the depot
+        for (int i = 1; i < individualChromosome.length; i++) {
+            current = individualChromosome[i];
+
+            totalTravelTime += travelTimes[previous][current];
+            time += travelTimes[previous][current];
+
+            if (current != 0) {
+                int careTime = patients.get(String.valueOf(current)).getCareTime();
+                int endTime = patients.get(String.valueOf(current)).getEndTime();
+                if (time > endTime || time + careTime > endTime) {
+                    numberOfPatientsMissed++;
+                } else if (time < patients.get(String.valueOf(current)).getStartTime()) {
+                    time = patients.get(String.valueOf(current)).getStartTime();
+                }
+                solution.append(" -> " + current + " (" + df.format(time) + "-");
+                time += careTime;
+                solution.append(df.format(time) + ") [" + patients.get(String.valueOf(current)).getStartTime() + "-" + patients.get(String.valueOf(current)).getEndTime() + "]");    
+            } else {
+                if (time > depot.getReturnTime()) {
+                    numberOfNursesOverReturnTime++;
+                }
+                solution.append(" -> D (" + df.format(time) + ")");
+                //System.out.println(solution.toString());
+                patientSequence[group] = solution.toString();
+                routeDuration[group] = df.format(time);
+
+                solution = new StringBuilder();
+                solution.append("D (0)");
+                totalDuration += time;
+                group++;
+                time = 0;
+            }
+
+            previous = current;
+        }
+        
+        Object[] result = new Object[3];
+        result[0] = patientSequence;
+        result[1] = routeDuration;
+        result[2] = totalDuration;
+        return result;
+    }
+
+
+
     public Individual[] getPopulation() {
         return population;
     }
@@ -1251,8 +1379,12 @@ public class GeneticAlgorithm {
     public static void main(String[] args) {
         GeneticAlgorithm GA = new GeneticAlgorithm(600, "src/main/resources/train/train_9.json", null);
 
-        GA.generatePopulation();
+        // GA.generatePopulation();
+        // GA.generateGreedyPopulation();
         GA.generateClusteredPopulation();
+
+        // GA.saveSolution(GA.getPopulation()[0], 1200);
+        // GA.printSolutionInDetail(GA.getPopulation()[0]);
 
 // start
 
@@ -1260,7 +1392,7 @@ public class GeneticAlgorithm {
         Individual[] OGpopulation = GA.getPopulation();
 
         Individual bestTotalIndividual = OGpopulation[0];
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
             // double bestFitnessBefore = population[0].getFitness();
             // for (Individual individual : population) {
             //     if (individual.getFitness() < bestFitnessBefore) {
@@ -1295,8 +1427,10 @@ public class GeneticAlgorithm {
                 bestTotalIndividual = bestIndividual;
             }
         }
+
         GA.saveSolution(bestTotalIndividual, bestTotalIndividual.getFitness());
-        GA.printSolution(bestTotalIndividual); 
+        GA.printSolution(bestTotalIndividual);
+        GA.printSolutionInDetail(bestTotalIndividual);
     }
 }
 
