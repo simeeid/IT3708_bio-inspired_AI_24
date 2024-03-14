@@ -50,6 +50,6 @@ for i in range(min(3, total_travelers)):  # Adjust this value to include more or
 if total_travelers > 3:
     plt.plot([], [], color='gray', label='...')
 
-plt.title(f'Total travelers: {total_travelers}\nTravelers not visiting any cities: {travelers_not_visiting}\nTotal travel time: {travel_time}')
+plt.title(f'Total number of nurses: {total_travelers}\nNurses not visiting any patients: {travelers_not_visiting}\nTotal travel time: {travel_time}')
 plt.legend()
 plt.show()
