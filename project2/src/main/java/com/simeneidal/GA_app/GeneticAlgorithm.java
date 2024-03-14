@@ -3,6 +3,7 @@ import org.apache.commons.math3.ml.clustering.*;
 import org.apache.commons.math3.ml.distance.EuclideanDistance;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 
@@ -11,7 +12,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DecimalFormat;
 
-public class GeneticAlgorithm {
+import java.util.concurrent.*;
+
+public class GeneticAlgorithm implements Callable<Individual> {
+
+    private int counting = 1;
 
     private int populationSize;
 
@@ -26,6 +31,17 @@ public class GeneticAlgorithm {
     private boolean tournamentParentSelection;
     private boolean orderOneCrossover;
 
+    Individual[] localPopulation;
+    int nbrGenerations;
+    boolean replacePopulation;
+    boolean replaceGreedy;
+    boolean parentClone;
+    int populationGeneration;
+    int numberOfClusters;
+    int numberOfIndividualsInClusters;
+    boolean diversity;
+    boolean shuffleNurses;
+
     /**
      * Constructs a GeneticAlgorithm object with the specified parameters.
      *
@@ -34,10 +50,20 @@ public class GeneticAlgorithm {
      * @param tournamentParentSelection A boolean value indicating whether tournament parent selection is used.
      * @param orderOneCrossover A boolean value indicating whether order one crossover is used.
      */
-    public GeneticAlgorithm(int populationSize, String filePath, boolean tournamentParentSelection, boolean orderOneCrossover) {
+    public GeneticAlgorithm(int populationSize, String filePath, boolean tournamentParentSelection, boolean orderOneCrossover, Individual[] localPopulation, int nbrGenerations, boolean replacePopulation, boolean replaceGreedy, boolean parentClone, int populationGeneration, int numberOfClusters, int numberOfIndividualsInClusters, boolean diversity, boolean shuffleNurses) {
         this.populationSize = populationSize;
         this.tournamentParentSelection = tournamentParentSelection;
         this.orderOneCrossover = orderOneCrossover;
+        this.localPopulation = localPopulation;
+        this.nbrGenerations = nbrGenerations;
+        this.replacePopulation = replacePopulation;
+        this.replaceGreedy = replaceGreedy;
+        this.parentClone = parentClone;
+        this.populationGeneration = populationGeneration;
+        this.numberOfClusters = numberOfClusters;
+        this.numberOfIndividualsInClusters = numberOfIndividualsInClusters;
+        this.diversity = diversity;
+        this.shuffleNurses = shuffleNurses;
 
         nbrNurses = 0;
         capacityNurse = 0;
@@ -67,6 +93,14 @@ public class GeneticAlgorithm {
         }
     }
 
+    @Override
+    public Individual call() throws Exception {
+        // Used for multithreading
+        // Run the GA and return the best individual
+        runGA();
+        return findOneBestIndividual(population);
+    }
+
     /**
      * Runs the Genetic Algorithm with the given parameters.
      *
@@ -79,14 +113,14 @@ public class GeneticAlgorithm {
      * @param numberOfClusters The number of clusters to generate in the clustered population.
      * @param numberOfIndividualsInClusters The number of individuals to generate for each cluster in the clustered population.
      */
-    public void runGA(Individual[] localPopulation, int nbrGenerations, boolean replacePopulation, boolean replaceGreedy, boolean parentClone, int populationGeneration, int numberOfClusters, int numberOfIndividualsInClusters) {        
+    public void runGA() {        
         if (Objects.isNull(localPopulation)) {
             if (populationGeneration == 0) {
                 generatePopulation();
             } else if (populationGeneration == 1) {
                 generateGreedyPopulation();
             } else if (populationGeneration == 2) {
-                generateClusteredPopulation(numberOfClusters, numberOfIndividualsInClusters);
+                generateClusteredPopulation(numberOfClusters, numberOfIndividualsInClusters, diversity);
             } else {
                 throw new IllegalArgumentException("Invalid population generation method");
             }
@@ -99,6 +133,31 @@ public class GeneticAlgorithm {
         boolean flag = false;
         
         for (int i = 0; i < nbrGenerations; i++) {
+            
+            if(true && (i+1) % 100000 == 0) {
+                // find the best individual and print its fitness
+                bestIndividual = findOneBestIndividual(population);
+                System.out.println("Fitness: " + bestIndividual.getFitness());
+            }
+
+            if ((i+1) % 1000000 == 0) {
+                System.out.println("Start shuffling");
+                for (Individual individual : population) {
+                    randomizeOrderOfNurses(individual);
+                }
+            }
+            if ((i+1) % 500000 == 0) {
+                System.out.println("Start combining");
+                bestIndividual = findOneBestIndividual(population);
+                combineRoutes(bestIndividual);
+            }
+            if ((i+1) % 750000 == 0) {
+                System.out.println("Start splitting");
+                bestIndividual = findOneBestIndividual(population);
+                counting = 1;
+                divideRoutes(bestIndividual.getChromosome().clone());
+            }
+
             if (replacePopulation && i % 100000 == 0) {
                 // find the next best individual
                 double bestFitness = bestIndividual.getFitness();
@@ -139,11 +198,20 @@ public class GeneticAlgorithm {
                 Individual parent2 = new Individual(parents[1].getChromosome().clone(), 0);
 
                 mutation(parent1); mutation(parent2);
+
+                if (shuffleNurses) {
+                    randomizeOrderOfNurses(parent1); randomizeOrderOfNurses(parent2);
+                }
+                
                 calculateFitness(parent1); calculateFitness(parent2);
                 survivorSelection(parent1, parent2);
             } else {
                 Individual[] children = crossover(parents[0].getChromosome(), parents[1].getChromosome());
                 mutation(children[0]); mutation(children[1]);
+                if (shuffleNurses) {
+                    randomizeOrderOfNurses(children[0]); randomizeOrderOfNurses(children[1]);
+                }
+                
                 calculateFitness(children[0]); calculateFitness(children[1]);
                 survivorSelection(children[0], children[1]);
             }
@@ -394,7 +462,7 @@ public class GeneticAlgorithm {
      * @param numberOfClusters The number of clusters to generate in the population.
      * @param numberOfIndividualsInClusters The number of individuals to generate for each cluster.
      */
-    public void generateClusteredPopulation(int numberOfClusters, int numberOfIndividualsInClusters) {
+    public void generateClusteredPopulation(int numberOfClusters, int numberOfIndividualsInClusters, boolean diversity) {
         Individual[] tempPopulation = new Individual[populationSize];
 
         // for all patients in the map, id is set to the key value
@@ -411,36 +479,64 @@ public class GeneticAlgorithm {
         }
 
         for (int i = 0; i < numberOfClusters; i++) {
-            for (int j = 0; j < numberOfIndividualsInClusters * 4; j+=4) {
-                // Perform clustering
-                KMeansPlusPlusClusterer<Clusterable> clusterer = new KMeansPlusPlusClusterer<>(3 + i, 5000, new EuclideanDistance());
-                List<CentroidCluster<Clusterable>> clusters = clusterer.cluster(patientPoints);
-
-                // Convert clusters back to patients
-                List<List<JsonData.Patient>> patientClusters = new ArrayList<>();
-                for (CentroidCluster<Clusterable> cluster : clusters) {
-                    List<JsonData.Patient> patientCluster = new ArrayList<>();
-                    for (Clusterable point : cluster.getPoints()) {
-                        patientCluster.add(findPatient(patients, point));
+            if (diversity) {
+                for (int j = 0; j < numberOfIndividualsInClusters * 4; j+=4) {
+                    // Perform clustering
+                    KMeansPlusPlusClusterer<Clusterable> clusterer = new KMeansPlusPlusClusterer<>(3 + i, 5000, new EuclideanDistance());
+                    List<CentroidCluster<Clusterable>> clusters = clusterer.cluster(patientPoints);
+    
+                    // Convert clusters back to patients
+                    List<List<JsonData.Patient>> patientClusters = new ArrayList<>();
+                    for (CentroidCluster<Clusterable> cluster : clusters) {
+                        List<JsonData.Patient> patientCluster = new ArrayList<>();
+                        for (Clusterable point : cluster.getPoints()) {
+                            patientCluster.add(findPatient(patients, point));
+                        }
+                        patientClusters.add(patientCluster);
                     }
-                    patientClusters.add(patientCluster);
+    
+                    // add 4 individuals to the population for diversity
+                    Individual individual1 = makeIndividualOfPatientClusters(patientClusters);
+                    // randomizeOrderOfNurses(individual1);
+                    tempPopulation[i*40 + j] = individual1;
+    
+                    sortOnEndTime(patientClusters);
+                    Individual individual2 = makeIndividualOfPatientClusters(patientClusters);
+                    // randomizeOrderOfNurses(individual2);
+                    // tempPopulation[i*40 + j + 1] = individual2;
+                    tempPopulation[i*40 + j + 1] = individual2;
+    
+    
+                    sortOnEndTimeAndDistance(patientClusters);
+                    Individual individual3 = makeIndividualOfPatientClusters(patientClusters);
+                    // randomizeOrderOfNurses(individual3);
+                    tempPopulation[i*40 + j + 2] = individual3;
+    
+                    sortOnNearestNeighbor(patientClusters);
+                    Individual individual4 = makeIndividualOfPatientClusters(patientClusters);
+                    // randomizeOrderOfNurses(individual4);
+                    tempPopulation[i*40 + j + 3] = individual4;
                 }
+            } else {
+                for (int j = 0; j < numberOfIndividualsInClusters; j++) {
+                    // Perform clustering
+                    KMeansPlusPlusClusterer<Clusterable> clusterer = new KMeansPlusPlusClusterer<>(3 + i, 5000, new EuclideanDistance());
+                    List<CentroidCluster<Clusterable>> clusters = clusterer.cluster(patientPoints);
 
-                // add 4 individuals to the population for diversity
-                Individual individual1 = makeIndividualOfPatientClusters(patientClusters);
-                tempPopulation[i*40 + j] = individual1;
+                    // Convert clusters back to patients
+                    List<List<JsonData.Patient>> patientClusters = new ArrayList<>();
+                    for (CentroidCluster<Clusterable> cluster : clusters) {
+                        List<JsonData.Patient> patientCluster = new ArrayList<>();
+                        for (Clusterable point : cluster.getPoints()) {
+                            patientCluster.add(findPatient(patients, point));
+                        }
+                        patientClusters.add(patientCluster);
+                    }
 
-                sortOnEndTime(patientClusters);
-                Individual individual2 = makeIndividualOfPatientClusters(patientClusters);
-                tempPopulation[i*40 + j + 1] = individual2;
-
-                sortOnEndTimeAndDistance(patientClusters);
-                Individual individual3 = makeIndividualOfPatientClusters(patientClusters);
-                tempPopulation[i*40 + j + 2] = individual3;
-
-                sortOnNearestNeighbor(patientClusters);
-                Individual individual4 = makeIndividualOfPatientClusters(patientClusters);
-                tempPopulation[i*40 + j + 3] = individual4;
+                    sortOnEndTime(patientClusters);
+                    Individual individual2 = makeIndividualOfPatientClusters(patientClusters);
+                    tempPopulation[i*10 + j] = individual2;
+                }
             }
         }
 
@@ -972,6 +1068,57 @@ public class GeneticAlgorithm {
     }
     
     /**
+     * Randomizes the order of nurses in the given individual's chromosome.
+     * Each nurse is marked as a negative number, and all patients to the left of this number belong to the nurse.
+     * This method randomizes the groups of nurses, so that the content within each of them remains the same.
+     *
+     * @param child The individual whose chromosome needs to be modified.
+     */
+    public void randomizeOrderOfNurses(Individual child) {
+        int[] chromosome = child.getChromosome();
+        int[] chromosomeCopy = new int[chromosome.length];
+
+        Map<String, int[]> nurseMap = new HashMap<>();
+        
+        int count = 0;
+        int start = 0;
+        int end = 0;
+        for (int i = 0; i < chromosome.length; i++) {
+            if (chromosome[i] < 0) {
+                end = i;
+                int[] tempArray = new int[end - start];
+                for (int j = 0; j < end - start; j++) {
+                    tempArray[j] = chromosome[start + j];
+                }
+                nurseMap.put(String.valueOf(count), tempArray);
+
+                start = end + 1;
+                count++;
+            }
+        }
+
+        List<Integer> list = new ArrayList<>();
+        for (int i = 0; i < nbrNurses; i++) {
+            list.add(i);
+        }
+        Collections.shuffle(list);
+        int[] indices = list.stream().mapToInt(Integer::intValue).toArray();
+
+        int index = 0;
+        for (int i = 0; i < nbrNurses; i++) {
+            int[] tempArray = nurseMap.get(String.valueOf(indices[i]));
+            for (int j = 0; j < tempArray.length; j++) {
+                chromosomeCopy[index] = tempArray[j];
+                index++;
+            }
+            chromosomeCopy[index] = -i - 1;
+            index++;
+        }
+
+        child.setChromosome(chromosomeCopy);
+    }
+
+    /**
      * Performs mutation on the given individual by randomly modifying its chromosome.
      * Mutation involves swapping and moving elements within and between groups, as well as reversing a portion of the chromosome.
      * The probability of each mutation operation is controlled by the specified probabilities.
@@ -1201,12 +1348,15 @@ public class GeneticAlgorithm {
         }
 
         if (child2.getFitness() < worstFitness1) {
+            // randomizeOrderOfNurses(child2);
             population[worstFitnessIndex1] = child2;
         } else if (child2.getFitness() < worstFitness2) {
+            // randomizeOrderOfNurses(child2);
             population[worstFitnessIndex2] = child2;
         }
 
         if (child1.getFitness() < worstFitness2) {
+            // randomizeOrderOfNurses(child1);
             population[worstFitnessIndex2] = child1;
         } 
     }
@@ -1348,6 +1498,8 @@ public class GeneticAlgorithm {
 
         int previous = individualChromosome[0];
         int current;
+
+        int start;
         
         // if the first element is a patient, then the nurse has to travel from the depot to the patient
         if (previous != 0) {
@@ -1360,12 +1512,16 @@ public class GeneticAlgorithm {
             solution.append(" -> " + previous + " (" + df.format(time) + "-");
             time += careTime;
             solution.append(df.format(time) + ") [" + patients.get(String.valueOf(previous)).getStartTime() + "-" + patients.get(String.valueOf(previous)).getEndTime() + "]");
+        
+            start = 1;
+        } else {
+            start = 0;
         }
 
         // for each pair of patients, the nurse has to travel the distance between them
         // a nurse is denoted by a 0 in the individual, so when we encounter a 0 this will
         // indicate that the nurse has to travel to depot, and a new nurse will start from the depot
-        for (int i = 1; i < individualChromosome.length; i++) {
+        for (int i = start; i < individualChromosome.length; i++) {
             current = individualChromosome[i];
 
             time += travelTimes[previous][current];
@@ -1400,6 +1556,176 @@ public class GeneticAlgorithm {
         return result;
     }
 
+    /**
+     * Tries every combination of putting two nurse rouse together as one.
+     * The new route is ordered on end-time, and undergoes survivor selection.
+     * 
+     * @param individual The individual to combine routes for.
+     */
+    public void combineRoutes(Individual individual) {
+        // try every combination of two nurses
+        Map<String, int[]> nurseRoutes = new HashMap<>();
+
+        int index = 0;
+        int start = 0;
+        int end = 0;
+        for (int i = 0; i < individual.getChromosome().length; i++) {
+            if (individual.getChromosome()[i] < 0) {
+                end = i;
+                int[] tempArray = new int[end - start];
+                for (int j = 0; j < end - start; j++) {
+                    tempArray[j] = individual.getChromosome()[start + j];
+                }
+                nurseRoutes.put(String.valueOf(index), tempArray);
+
+                start = end + 1;
+                index++;
+            }
+        }
+
+        for (int i = 0; i < nbrNurses; i++) {
+            for (int j = i + 1; j < nbrNurses; j++) {
+                // get int[] at map index i and j, and combine them into one new int
+                int[] tempArray = new int[nurseRoutes.get(String.valueOf(i)).length + nurseRoutes.get(String.valueOf(j)).length];
+                for (int k = 0; k < nurseRoutes.get(String.valueOf(i)).length; k++) {
+                    tempArray[k] = nurseRoutes.get(String.valueOf(i))[k];
+                }
+                for (int k = 0; k < nurseRoutes.get(String.valueOf(j)).length; k++) {
+                    tempArray[k + nurseRoutes.get(String.valueOf(i)).length] = nurseRoutes.get(String.valueOf(j))[k];
+                }
+
+                // sort the content of int[] tempArray on patients.get(String.valueOf(int)).getEndTime()
+                Integer[] tempArray2 = Arrays.stream(tempArray).boxed().toArray(Integer[]::new);
+                Arrays.sort(tempArray2, Comparator.comparing(o -> patients.get(String.valueOf(o)).getEndTime()));
+                tempArray = Arrays.stream(tempArray2).mapToInt(Integer::intValue).toArray();
+
+                // create a new chromosome with the combined int[] tempArray
+                int[] chromosome = new int[individual.getChromosome().length];
+                for (int k = 0; k < tempArray.length; k++) {
+                    chromosome[k] = tempArray[k];
+                }
+
+                int group = 0;
+                for (int k = tempArray.length; k < chromosome.length; k++) {
+                    if (group != i && group != j) {
+                        for (int l = 0; l < nurseRoutes.get(String.valueOf(group)).length; l++) {
+                            chromosome[k] = nurseRoutes.get(String.valueOf(group))[l];
+                            k++;
+                        }
+                    }
+                    chromosome[k] = -group - 1;
+                    group++;
+                }
+
+                Individual newIndividual = new Individual(chromosome, 0);
+                calculateFitness(newIndividual);
+                survivorSelection(newIndividual, newIndividual);
+            }
+        }
+    }
+
+    /**
+     * Helper method to divideRoutes.
+     * Generates all combinations of dividing the patients of a nurse between two nurses.
+     * Each new combination results in a individual that may undergo survivor selection.
+     * Maximum 1 million different combinations, for time concerns.
+     * 
+     * @param arr The array of patients to divide between two nurses.
+     * @param list1 The list of patients for the first nurse.
+     * @param list2 The list of patients for the second nurse.
+     * @param index The current index in the array.
+     * @param nurse1 The first nurse.
+     * @param nurse2 The second nurse.
+     * @param otherNurses The other nurses in the route.
+     * @param otherRoutes The routes of the other nurses.
+     */
+    public void generateCombinations(int[] arr, List<Integer> list1, List<Integer> list2, int index, int nurse1, int nurse2, List<Integer> otherNurses, List<List<Integer>> otherRoutes) {
+        if (counting > 1000000) {
+            return;
+        }
+        counting++;
+
+        if (index == arr.length) {
+            List<Integer> newRoute = new ArrayList<>();
+            for (int i = 0; i < otherNurses.size(); i++) {
+                newRoute.addAll(otherRoutes.get(i));
+                newRoute.add(otherNurses.get(i));
+            }
+            newRoute.addAll(list1);
+            newRoute.add(nurse1);
+            newRoute.addAll(list2);
+            newRoute.add(nurse2);
+            for (int i = 1; i <= 25; i++) {
+                if (!newRoute.contains(-i)) {
+                    newRoute.add(-i);
+                }
+            }
+
+            int[] newRouteInt = newRoute.stream().mapToInt(i -> i).toArray();
+            Individual ind = new Individual(newRouteInt, 0);
+            calculateFitness(ind);
+            survivorSelection(ind, ind);
+
+            return;
+        }
+
+        list1.add(arr[index]);
+        generateCombinations(arr, list1, list2, index + 1, nurse1, nurse2, otherNurses, otherRoutes);
+        list1.remove(list1.size() - 1);
+
+        if (!list1.isEmpty()) {
+            list2.add(arr[index]);
+            generateCombinations(arr, list1, list2, index + 1, nurse1, nurse2, otherNurses, otherRoutes);
+            list2.remove(list2.size() - 1);
+        }
+    }
+
+    /**
+     * Iterates through the nurses of route, trying all combinations of dividing the patients of each nurse
+     * between two nurses. 
+     * 
+     * @param route The route (chromosome) to make new individuals of.
+     */
+    public void divideRoutes(int[] route) {
+        List<Integer> emptyNurses = new ArrayList<>();
+        Map<Integer, List<Integer>> nurseRoutes = new HashMap<>();
+
+        List<Integer> currentRoute = new ArrayList<>();
+        int currentNurse = 0;
+        for (int i = 0; i < route.length; i++) {
+            if (route[i] < 0) {
+                if (currentNurse != 0) {
+                    if (!currentRoute.isEmpty()) {
+                        nurseRoutes.put(currentNurse, new ArrayList<>(currentRoute));
+                        currentRoute.clear();
+                    } else {
+                        emptyNurses.add(currentNurse);
+                    }
+                }
+                currentNurse = route[i];
+            } else {
+                currentRoute.add(route[i]);
+            }
+        }
+        if (!currentRoute.isEmpty()) {
+            nurseRoutes.put(currentNurse, new ArrayList<>(currentRoute));
+        } else {
+            emptyNurses.add(currentNurse);
+        }
+
+        for (Map.Entry<Integer, List<Integer>> entry : nurseRoutes.entrySet()) {
+            if (!emptyNurses.isEmpty()) {
+                Integer emptyNurse = emptyNurses.remove(0); // Use and remove the first empty nurse
+                List<Integer> otherNurses = new ArrayList<>(nurseRoutes.keySet());
+                otherNurses.remove(entry.getKey());
+                List<List<Integer>> otherRoutes = otherNurses.stream().map(nurse -> nurseRoutes.get(nurse)).collect(Collectors.toList());
+                counting++;
+                generateCombinations(entry.getValue().stream().mapToInt(i -> i).toArray(), new ArrayList<>(), new ArrayList<>(), 0, entry.getKey(), emptyNurse, otherNurses, otherRoutes);
+                emptyNurses.add(emptyNurse); // Put the empty nurse back
+            }
+        }
+    }
+
     public Individual[] getPopulation() {
         return population;
     }
@@ -1414,40 +1740,77 @@ public class GeneticAlgorithm {
         boolean tournamentParentSelection = true; // true=tournament, false=best
         boolean orderOneCrossover = false; // true=order one, false=partially mapped
         int populationGeneration = 2; // 0=random, 1=greedy, 2=heuristic
+        boolean diversity = false; // true=diversity in clutsering, false=no diversity // another for multi
+        boolean shuffleNurses = false; // true=order of nurses are shuffled, false=no shuffle // another for multi
 
-        int populationSize = 600; // numberOfClusters * numberOfIndividualsInClusters * 4
+        int populationSize = 150; //600; // numberOfClusters * numberOfIndividualsInClusters * 4 // another for multi
         String filePath = "src/main/resources/train/train_9.json";
         int numberOfRuns = 1;
-        int numberOfGenerations = 500000;
+        int numberOfGenerations = 1500000;
         int numberOfClusters = 15;
         int numberOfIndividualsInClusters = 10; // will be timed by 4 for diversity
 
-        GeneticAlgorithm GA = new GeneticAlgorithm(populationSize, filePath, tournamentParentSelection, orderOneCrossover);
+        GeneticAlgorithm GA = new GeneticAlgorithm(populationSize, filePath, tournamentParentSelection, orderOneCrossover, null, numberOfGenerations, replacePopulation, replaceGreedy, parentClone, populationGeneration, numberOfClusters, numberOfIndividualsInClusters, diversity, shuffleNurses);
         
-        GA.generatePopulation();
-        Individual bestTotalIndividual = GA.getPopulation()[0];
 
-        for (int i = 0; i < numberOfRuns; i++) {
-            GA.runGA(null, numberOfGenerations, replacePopulation, replaceGreedy, parentClone, populationGeneration, numberOfClusters, numberOfIndividualsInClusters);
 
-            Individual[] population = GA.getPopulation();
-            Individual bestIndividual = population[0];
-            double bestFitnessAfter = population[0].getFitness();
+        // GA.generatePopulation();
+        // Individual bestTotalIndividual = GA.getPopulation()[0];
 
-            for (Individual individual : population) {
-                if (individual.getFitness() < bestFitnessAfter) {
-                    bestIndividual = individual;
-                    bestFitnessAfter = individual.getFitness();
+        // for (int i = 0; i < numberOfRuns; i++) {
+        //     GA.runGA();
+
+        //     Individual[] population = GA.getPopulation();
+        //     Individual bestIndividual = population[0];
+        //     double bestFitnessAfter = population[0].getFitness();
+
+        //     for (Individual individual : population) {
+        //         if (individual.getFitness() < bestFitnessAfter) {
+        //             bestIndividual = individual;
+        //             bestFitnessAfter = individual.getFitness();
+        //         }
+        //     }
+        //     System.out.println("Best fitness of generation " + i + ": " + bestFitnessAfter);
+        //     if (bestFitnessAfter < bestTotalIndividual.getFitness()) {
+        //         bestTotalIndividual = bestIndividual;
+        //     }
+        // }
+
+        // GA.saveSolution(bestTotalIndividual, bestTotalIndividual.getFitness());
+        // GA.printSolution(bestTotalIndividual);
+        // GA.printSolutionInDetail(bestTotalIndividual);
+
+
+
+        ExecutorService executor = Executors.newFixedThreadPool(3); // Create a thread pool with 3 threads
+        List<Future<Individual>> futures = new ArrayList<>();
+
+        int[] popSizes = new int[] {150, 150, 600};
+        boolean[] diversities = new boolean[] {false, false, true};
+        boolean[] shuffleNurseses = new boolean[] {false, true, false};
+
+        for (int i = 0; i < 3; i++) {
+            GeneticAlgorithm ga = new GeneticAlgorithm(popSizes[i], filePath, tournamentParentSelection, orderOneCrossover, null, numberOfGenerations, replacePopulation, replaceGreedy, parentClone, populationGeneration, numberOfClusters, numberOfIndividualsInClusters, diversities[i], shuffleNurseses[i]); // Create a new GA instance
+            Future<Individual> future = executor.submit(ga); // Submit it to be run by the thread pool
+            futures.add(future);
+        }
+
+        Individual bestIndividual = null;
+        for (Future<Individual> future : futures) {
+            try {
+                Individual ind = future.get(); // Get the result of the GA run
+                if (bestIndividual == null || ind.getFitness() < bestIndividual.getFitness()) {
+                    bestIndividual = ind; // Update the best individual if necessary
                 }
-            }
-            System.out.println("Best fitness of generation " + i + ": " + bestFitnessAfter);
-            if (bestFitnessAfter < bestTotalIndividual.getFitness()) {
-                bestTotalIndividual = bestIndividual;
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
             }
         }
 
-        GA.saveSolution(bestTotalIndividual, bestTotalIndividual.getFitness());
-        GA.printSolution(bestTotalIndividual);
-        GA.printSolutionInDetail(bestTotalIndividual);
+        executor.shutdown(); 
+
+        GA.saveSolution(bestIndividual, bestIndividual.getFitness());
+        GA.printSolution(bestIndividual);
+        GA.printSolutionInDetail(bestIndividual);
     }
 }
