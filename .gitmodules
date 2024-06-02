@@ -1,0 +1,3 @@
+[submodule "project3"]
+	path = project3
+	url = https://github.com/javanster/Image-Segmentation-GA.git
